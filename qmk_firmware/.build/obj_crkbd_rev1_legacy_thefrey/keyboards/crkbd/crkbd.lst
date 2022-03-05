@@ -1,0 +1,47 @@
+   1               		.file	"crkbd.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.Letext0:
+  11               		.file 1 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdint.h"
+  12               		.file 2 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/lib/avr-gcc/8/gcc/avr/8.4.0/include/stddef.h"
+  13               		.file 3 "keyboards/crkbd/rev1/legacy/legacy.h"
+  14               		.file 4 "tmk_core/common/action.h"
+  15               		.file 5 "tmk_core/common/report.h"
+  16               		.file 6 "tmk_core/common/host_driver.h"
+  17               		.file 7 "tmk_core/common/host.h"
+  18               		.file 8 "tmk_core/common/debug.h"
+  19               		.file 9 "quantum/keycode_config.h"
+  20               		.file 10 "quantum/keymap.h"
+  21               		.file 11 "./quantum/color.h"
+  22               		.file 12 "quantum/rgblight.h"
+  23               		.file 13 "tmk_core/common/action_layer.h"
+  24               		.file 14 "tmk_core/common/timer.h"
+  25               		.file 15 "tmk_core/common/action_util.h"
+  26               		.file 16 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdlib.h"
+  27               		.file 17 "quantum/quantum.h"
+  28               		.file 18 "keyboards/crkbd/rev1/legacy/split_util.h"
+  29               		.file 19 "lib/lufa/LUFA/Drivers/USB/Core/AVR8/../StdRequestType.h"
+  30               		.file 20 "lib/lufa/LUFA/Drivers/USB/Core/AVR8/../DeviceStandardReq.h"
+  31               		.file 21 "lib/lufa/LUFA/Drivers/USB/Core/USBTask.h"
+  32               		.file 22 "lib/lufa/LUFA/Drivers/USB/Core/HostStandardReq.h"
+  33               		.file 23 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdio.h"
+  34               		.file 24 "tmk_core/protocol/lufa/lufa.h"
+  35               		.file 25 "keyboards/crkbd/rev1/legacy/ssd1306.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 crkbd.c
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccdMyeNT.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccdMyeNT.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccdMyeNT.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccdMyeNT.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccdMyeNT.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccdMyeNT.s:1391   .debug_abbrev:0000000000000000 .Ldebug_abbrev0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccdMyeNT.s:1863   .debug_line:0000000000000000 .Ldebug_line0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccdMyeNT.s:37     .debug_info:0000000000000000 .Ldebug_info0
+
+NO UNDEFINED SYMBOLS

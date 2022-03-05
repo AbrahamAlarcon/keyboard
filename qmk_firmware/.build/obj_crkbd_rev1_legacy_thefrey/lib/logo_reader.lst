@@ -1,0 +1,159 @@
+   1               		.file	"logo_reader.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               		.section	.text.read_logo,"ax",@progbits
+  11               	.global	read_logo
+  13               	read_logo:
+  14               	.LFB122:
+  15               		.file 1 "keyboards/crkbd/lib/logo_reader.c"
+   1:keyboards/crkbd/lib/logo_reader.c **** #include "crkbd.h"
+   2:keyboards/crkbd/lib/logo_reader.c **** 
+   3:keyboards/crkbd/lib/logo_reader.c **** const char *read_logo(void) {
+  16               		.loc 1 3 29 view -0
+  17               		.cfi_startproc
+  18               	/* prologue: function */
+  19               	/* frame size = 0 */
+  20               	/* stack size = 0 */
+  21               	.L__stack_usage = 0
+   4:keyboards/crkbd/lib/logo_reader.c ****   static char logo[] = {
+  22               		.loc 1 4 3 view .LVU1
+   5:keyboards/crkbd/lib/logo_reader.c ****       0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8
+   6:keyboards/crkbd/lib/logo_reader.c ****       0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0xa9, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xa
+   7:keyboards/crkbd/lib/logo_reader.c ****       0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7, 0xc8, 0xc9, 0xca, 0xcb, 0xcc, 0xcd, 0xce, 0xc
+   8:keyboards/crkbd/lib/logo_reader.c ****       0};
+   9:keyboards/crkbd/lib/logo_reader.c **** 
+  10:keyboards/crkbd/lib/logo_reader.c ****   return logo;
+  23               		.loc 1 10 3 view .LVU2
+  11:keyboards/crkbd/lib/logo_reader.c **** }
+  24               		.loc 1 11 1 is_stmt 0 view .LVU3
+  25 0000 80E0      		ldi r24,lo8(logo.6414)
+  26 0002 90E0      		ldi r25,hi8(logo.6414)
+  27               	/* epilogue start */
+  28 0004 0895      		ret
+  29               		.cfi_endproc
+  30               	.LFE122:
+  32               		.section	.data.logo.6414,"aw"
+  35               	logo.6414:
+  36 0000 80        		.byte	-128
+  37 0001 81        		.byte	-127
+  38 0002 82        		.byte	-126
+  39 0003 83        		.byte	-125
+  40 0004 84        		.byte	-124
+  41 0005 85        		.byte	-123
+  42 0006 86        		.byte	-122
+  43 0007 87        		.byte	-121
+  44 0008 88        		.byte	-120
+  45 0009 89        		.byte	-119
+  46 000a 8A        		.byte	-118
+  47 000b 8B        		.byte	-117
+  48 000c 8C        		.byte	-116
+  49 000d 8D        		.byte	-115
+  50 000e 8E        		.byte	-114
+  51 000f 8F        		.byte	-113
+  52 0010 90        		.byte	-112
+  53 0011 91        		.byte	-111
+  54 0012 92        		.byte	-110
+  55 0013 93        		.byte	-109
+  56 0014 94        		.byte	-108
+  57 0015 A0        		.byte	-96
+  58 0016 A1        		.byte	-95
+  59 0017 A2        		.byte	-94
+  60 0018 A3        		.byte	-93
+  61 0019 A4        		.byte	-92
+  62 001a A5        		.byte	-91
+  63 001b A6        		.byte	-90
+  64 001c A7        		.byte	-89
+  65 001d A8        		.byte	-88
+  66 001e A9        		.byte	-87
+  67 001f AA        		.byte	-86
+  68 0020 AB        		.byte	-85
+  69 0021 AC        		.byte	-84
+  70 0022 AD        		.byte	-83
+  71 0023 AE        		.byte	-82
+  72 0024 AF        		.byte	-81
+  73 0025 B0        		.byte	-80
+  74 0026 B1        		.byte	-79
+  75 0027 B2        		.byte	-78
+  76 0028 B3        		.byte	-77
+  77 0029 B4        		.byte	-76
+  78 002a C0        		.byte	-64
+  79 002b C1        		.byte	-63
+  80 002c C2        		.byte	-62
+  81 002d C3        		.byte	-61
+  82 002e C4        		.byte	-60
+  83 002f C5        		.byte	-59
+  84 0030 C6        		.byte	-58
+  85 0031 C7        		.byte	-57
+  86 0032 C8        		.byte	-56
+  87 0033 C9        		.byte	-55
+  88 0034 CA        		.byte	-54
+  89 0035 CB        		.byte	-53
+  90 0036 CC        		.byte	-52
+  91 0037 CD        		.byte	-51
+  92 0038 CE        		.byte	-50
+  93 0039 CF        		.byte	-49
+  94 003a D0        		.byte	-48
+  95 003b D1        		.byte	-47
+  96 003c D2        		.byte	-46
+  97 003d D3        		.byte	-45
+  98 003e D4        		.byte	-44
+  99 003f 00        		.byte	0
+ 100               		.text
+ 101               	.Letext0:
+ 102               		.file 2 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdint.h"
+ 103               		.file 3 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/lib/avr-gcc/8/gcc/avr/8.4.0/include/stddef.h"
+ 104               		.file 4 "keyboards/crkbd/rev1/legacy/legacy.h"
+ 105               		.file 5 "tmk_core/common/action.h"
+ 106               		.file 6 "tmk_core/common/report.h"
+ 107               		.file 7 "tmk_core/common/host_driver.h"
+ 108               		.file 8 "tmk_core/common/host.h"
+ 109               		.file 9 "tmk_core/common/debug.h"
+ 110               		.file 10 "quantum/keycode_config.h"
+ 111               		.file 11 "quantum/keymap.h"
+ 112               		.file 12 "./quantum/color.h"
+ 113               		.file 13 "quantum/rgblight.h"
+ 114               		.file 14 "tmk_core/common/action_layer.h"
+ 115               		.file 15 "tmk_core/common/timer.h"
+ 116               		.file 16 "tmk_core/common/action_util.h"
+ 117               		.file 17 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdlib.h"
+ 118               		.file 18 "quantum/quantum.h"
+ 119               		.file 19 "keyboards/crkbd/rev1/legacy/split_util.h"
+ 120               		.file 20 "lib/lufa/LUFA/Drivers/USB/Core/AVR8/../StdRequestType.h"
+ 121               		.file 21 "lib/lufa/LUFA/Drivers/USB/Core/AVR8/../DeviceStandardReq.h"
+ 122               		.file 22 "lib/lufa/LUFA/Drivers/USB/Core/USBTask.h"
+ 123               		.file 23 "lib/lufa/LUFA/Drivers/USB/Core/HostStandardReq.h"
+ 124               		.file 24 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdio.h"
+ 125               		.file 25 "tmk_core/protocol/lufa/lufa.h"
+ 126               		.file 26 "keyboards/crkbd/rev1/legacy/ssd1306.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 logo_reader.c
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:13     .text.read_logo:0000000000000000 read_logo
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:16     .text.read_logo:0000000000000000 .Loc.0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:17     .text.read_logo:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:22     .text.read_logo:0000000000000000 .Loc.1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:23     .text.read_logo:0000000000000000 .Loc.2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:24     .text.read_logo:0000000000000000 .Loc.3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:35     .data.logo.6414:0000000000000000 logo.6414
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:29     .text.read_logo:0000000000000006 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:32     .text.read_logo:0000000000000006 L0
+                     .debug_frame:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:1522   .debug_abbrev:0000000000000000 .Ldebug_abbrev0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:2055   .debug_ranges:0000000000000000 .Ldebug_ranges0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:2061   .debug_line:0000000000000000 .Ldebug_line0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:14     .text.read_logo:0000000000000000 .LFB122
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:30     .text.read_logo:0000000000000006 .LFE122
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccBE8bM8.s:128    .debug_info:0000000000000000 .Ldebug_info0
+
+UNDEFINED SYMBOLS
+__do_copy_data

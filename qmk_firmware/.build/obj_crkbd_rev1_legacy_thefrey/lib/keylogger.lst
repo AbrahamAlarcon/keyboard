@@ -1,0 +1,486 @@
+   1               		.file	"keylogger.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               		.section	.rodata.set_keylog.str1.1,"aMS",@progbits,1
+  11               	.LC0:
+  12 0000 2564 7825 		.string	"%dx%d, k%2d : %c"
+  12      642C 206B 
+  12      2532 6420 
+  12      3A20 2563 
+  12      00
+  13               		.section	.text.set_keylog,"ax",@progbits
+  14               	.global	set_keylog
+  16               	set_keylog:
+  17               	.LVL0:
+  18               	.LFB122:
+  19               		.file 1 "keyboards/crkbd/lib/keylogger.c"
+   1:keyboards/crkbd/lib/keylogger.c **** #include <stdio.h>
+   2:keyboards/crkbd/lib/keylogger.c **** #include "crkbd.h"
+   3:keyboards/crkbd/lib/keylogger.c **** 
+   4:keyboards/crkbd/lib/keylogger.c **** char keylog_str[24] = {};
+   5:keyboards/crkbd/lib/keylogger.c **** char keylogs_str[21] = {};
+   6:keyboards/crkbd/lib/keylogger.c **** int keylogs_str_idx = 0;
+   7:keyboards/crkbd/lib/keylogger.c **** 
+   8:keyboards/crkbd/lib/keylogger.c **** const char code_to_name[60] = {
+   9:keyboards/crkbd/lib/keylogger.c ****     ' ', ' ', ' ', ' ', 'a', 'b', 'c', 'd', 'e', 'f',
+  10:keyboards/crkbd/lib/keylogger.c ****     'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p',
+  11:keyboards/crkbd/lib/keylogger.c ****     'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+  12:keyboards/crkbd/lib/keylogger.c ****     '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
+  13:keyboards/crkbd/lib/keylogger.c ****     'R', 'E', 'B', 'T', ' ', ' ', ' ', ' ', ' ', ' ',
+  14:keyboards/crkbd/lib/keylogger.c ****     ' ', ';', '\'', ' ', ',', '.', '/', ' ', ' ', ' '};
+  15:keyboards/crkbd/lib/keylogger.c **** 
+  16:keyboards/crkbd/lib/keylogger.c **** void set_keylog(uint16_t keycode, keyrecord_t *record) {
+  20               		.loc 1 16 56 view -0
+  21               		.cfi_startproc
+  22               		.loc 1 16 56 is_stmt 0 view .LVU1
+  23 0000 CF93      		push r28
+  24               	.LCFI0:
+  25               		.cfi_def_cfa_offset 3
+  26               		.cfi_offset 28, -2
+  27               	/* prologue: function */
+  28               	/* frame size = 0 */
+  29               	/* stack size = 1 */
+  30               	.L__stack_usage = 1
+  17:keyboards/crkbd/lib/keylogger.c ****   char name = ' ';
+  31               		.loc 1 17 3 is_stmt 1 view .LVU2
+  32               	.LVL1:
+  18:keyboards/crkbd/lib/keylogger.c ****   if (keycode < 60) {
+  33               		.loc 1 18 3 view .LVU3
+  17:keyboards/crkbd/lib/keylogger.c ****   char name = ' ';
+  34               		.loc 1 17 8 is_stmt 0 view .LVU4
+  35 0002 C0E2      		ldi r28,lo8(32)
+  36               		.loc 1 18 6 view .LVU5
+  37 0004 8C33      		cpi r24,60
+  38 0006 9105      		cpc r25,__zero_reg__
+  39 0008 00F4      		brsh .L2
+  19:keyboards/crkbd/lib/keylogger.c ****     name = code_to_name[keycode];
+  40               		.loc 1 19 5 is_stmt 1 view .LVU6
+  41               		.loc 1 19 10 is_stmt 0 view .LVU7
+  42 000a FC01      		movw r30,r24
+  43 000c E050      		subi r30,lo8(-(code_to_name))
+  44 000e F040      		sbci r31,hi8(-(code_to_name))
+  45 0010 C081      		ld r28,Z
+  46               	.LVL2:
+  47               	.L2:
+  20:keyboards/crkbd/lib/keylogger.c ****   }
+  21:keyboards/crkbd/lib/keylogger.c **** 
+  22:keyboards/crkbd/lib/keylogger.c ****   // update keylog
+  23:keyboards/crkbd/lib/keylogger.c ****   snprintf(keylog_str, sizeof(keylog_str), "%dx%d, k%2d : %c",
+  48               		.loc 1 23 3 is_stmt 1 view .LVU8
+  49 0012 1F92      		push __zero_reg__
+  50               	.LCFI1:
+  51               		.cfi_def_cfa_offset 4
+  52 0014 CF93      		push r28
+  53               	.LCFI2:
+  54               		.cfi_def_cfa_offset 5
+  55 0016 9F93      		push r25
+  56               	.LCFI3:
+  57               		.cfi_def_cfa_offset 6
+  58 0018 8F93      		push r24
+  59               	.LCFI4:
+  60               		.cfi_def_cfa_offset 7
+  61 001a FB01      		movw r30,r22
+  62 001c 8081      		ld r24,Z
+  63               	.LVL3:
+  64               		.loc 1 23 3 is_stmt 0 view .LVU9
+  65 001e 1F92      		push __zero_reg__
+  66               	.LCFI5:
+  67               		.cfi_def_cfa_offset 8
+  68 0020 8F93      		push r24
+  69               	.LCFI6:
+  70               		.cfi_def_cfa_offset 9
+  71 0022 8181      		ldd r24,Z+1
+  72 0024 1F92      		push __zero_reg__
+  73               	.LCFI7:
+  74               		.cfi_def_cfa_offset 10
+  75 0026 8F93      		push r24
+  76               	.LCFI8:
+  77               		.cfi_def_cfa_offset 11
+  78 0028 80E0      		ldi r24,lo8(.LC0)
+  79 002a 90E0      		ldi r25,hi8(.LC0)
+  80 002c 9F93      		push r25
+  81               	.LCFI9:
+  82               		.cfi_def_cfa_offset 12
+  83 002e 8F93      		push r24
+  84               	.LCFI10:
+  85               		.cfi_def_cfa_offset 13
+  86 0030 1F92      		push __zero_reg__
+  87               	.LCFI11:
+  88               		.cfi_def_cfa_offset 14
+  89 0032 88E1      		ldi r24,lo8(24)
+  90 0034 8F93      		push r24
+  91               	.LCFI12:
+  92               		.cfi_def_cfa_offset 15
+  93 0036 80E0      		ldi r24,lo8(keylog_str)
+  94 0038 90E0      		ldi r25,hi8(keylog_str)
+  95 003a 9F93      		push r25
+  96               	.LCFI13:
+  97               		.cfi_def_cfa_offset 16
+  98 003c 8F93      		push r24
+  99               	.LCFI14:
+ 100               		.cfi_def_cfa_offset 17
+ 101 003e 0E94 0000 		call snprintf
+ 102               	.LVL4:
+  24:keyboards/crkbd/lib/keylogger.c ****            record->event.key.row, record->event.key.col,
+  25:keyboards/crkbd/lib/keylogger.c ****            keycode, name);
+  26:keyboards/crkbd/lib/keylogger.c **** 
+  27:keyboards/crkbd/lib/keylogger.c ****   // update keylogs
+  28:keyboards/crkbd/lib/keylogger.c ****   if (keylogs_str_idx == sizeof(keylogs_str) - 1) {
+ 103               		.loc 1 28 3 is_stmt 1 view .LVU10
+ 104               		.loc 1 28 6 is_stmt 0 view .LVU11
+ 105 0042 8DB7      		in r24,__SP_L__
+ 106 0044 9EB7      		in r25,__SP_H__
+ 107 0046 0E96      		adiw r24,14
+ 108 0048 0FB6      		in __tmp_reg__,__SREG__
+ 109 004a F894      		cli
+ 110 004c 9EBF      		out __SP_H__,r25
+ 111 004e 0FBE      		out __SREG__,__tmp_reg__
+ 112 0050 8DBF      		out __SP_L__,r24
+ 113               	.LCFI15:
+ 114               		.cfi_def_cfa_offset 3
+ 115 0052 8091 0000 		lds r24,keylogs_str_idx
+ 116 0056 9091 0000 		lds r25,keylogs_str_idx+1
+ 117 005a 4497      		sbiw r24,20
+ 118 005c 01F4      		brne .L3
+  29:keyboards/crkbd/lib/keylogger.c ****     keylogs_str_idx = 0;
+ 119               		.loc 1 29 5 is_stmt 1 view .LVU12
+ 120               		.loc 1 29 21 is_stmt 0 view .LVU13
+ 121 005e 1092 0000 		sts keylogs_str_idx+1,__zero_reg__
+ 122 0062 1092 0000 		sts keylogs_str_idx,__zero_reg__
+  30:keyboards/crkbd/lib/keylogger.c ****     for (int i = 0; i < sizeof(keylogs_str) - 1; i++) {
+ 123               		.loc 1 30 5 is_stmt 1 view .LVU14
+ 124               	.LBB2:
+ 125               		.loc 1 30 10 view .LVU15
+ 126               	.LVL5:
+ 127               		.loc 1 30 21 view .LVU16
+ 128 0066 E0E0      		ldi r30,lo8(keylogs_str)
+ 129 0068 F0E0      		ldi r31,hi8(keylogs_str)
+  31:keyboards/crkbd/lib/keylogger.c ****       keylogs_str[i] = ' ';
+ 130               		.loc 1 31 22 is_stmt 0 view .LVU17
+ 131 006a 80E2      		ldi r24,lo8(32)
+ 132               	.LVL6:
+ 133               	.L4:
+ 134               		.loc 1 31 7 is_stmt 1 discriminator 3 view .LVU18
+ 135               		.loc 1 31 22 is_stmt 0 discriminator 3 view .LVU19
+ 136 006c 8193      		st Z+,r24
+ 137               	.LVL7:
+  30:keyboards/crkbd/lib/keylogger.c ****     for (int i = 0; i < sizeof(keylogs_str) - 1; i++) {
+ 138               		.loc 1 30 50 is_stmt 1 discriminator 3 view .LVU20
+  30:keyboards/crkbd/lib/keylogger.c ****     for (int i = 0; i < sizeof(keylogs_str) - 1; i++) {
+ 139               		.loc 1 30 21 discriminator 3 view .LVU21
+  30:keyboards/crkbd/lib/keylogger.c ****     for (int i = 0; i < sizeof(keylogs_str) - 1; i++) {
+ 140               		.loc 1 30 5 is_stmt 0 discriminator 3 view .LVU22
+ 141 006e 90E0      		ldi r25,hi8(keylogs_str+20)
+ 142 0070 E030      		cpi r30,lo8(keylogs_str+20)
+ 143 0072 F907      		cpc r31,r25
+ 144 0074 01F4      		brne .L4
+ 145               	.LVL8:
+ 146               	.L3:
+  30:keyboards/crkbd/lib/keylogger.c ****     for (int i = 0; i < sizeof(keylogs_str) - 1; i++) {
+ 147               		.loc 1 30 5 discriminator 3 view .LVU23
+ 148               	.LBE2:
+  32:keyboards/crkbd/lib/keylogger.c ****     }
+  33:keyboards/crkbd/lib/keylogger.c ****   }
+  34:keyboards/crkbd/lib/keylogger.c **** 
+  35:keyboards/crkbd/lib/keylogger.c ****   keylogs_str[keylogs_str_idx] = name;
+ 149               		.loc 1 35 3 is_stmt 1 view .LVU24
+ 150               		.loc 1 35 14 is_stmt 0 view .LVU25
+ 151 0076 8091 0000 		lds r24,keylogs_str_idx
+ 152 007a 9091 0000 		lds r25,keylogs_str_idx+1
+ 153               		.loc 1 35 32 view .LVU26
+ 154 007e FC01      		movw r30,r24
+ 155 0080 E050      		subi r30,lo8(-(keylogs_str))
+ 156 0082 F040      		sbci r31,hi8(-(keylogs_str))
+ 157 0084 C083      		st Z,r28
+  36:keyboards/crkbd/lib/keylogger.c ****   keylogs_str_idx++;
+ 158               		.loc 1 36 3 is_stmt 1 view .LVU27
+ 159               		.loc 1 36 18 is_stmt 0 view .LVU28
+ 160 0086 0196      		adiw r24,1
+ 161 0088 9093 0000 		sts keylogs_str_idx+1,r25
+ 162 008c 8093 0000 		sts keylogs_str_idx,r24
+ 163               	/* epilogue start */
+  37:keyboards/crkbd/lib/keylogger.c **** }
+ 164               		.loc 1 37 1 view .LVU29
+ 165 0090 CF91      		pop r28
+ 166               	.LVL9:
+ 167               		.loc 1 37 1 view .LVU30
+ 168 0092 0895      		ret
+ 169               		.cfi_endproc
+ 170               	.LFE122:
+ 172               		.section	.text.read_keylog,"ax",@progbits
+ 173               	.global	read_keylog
+ 175               	read_keylog:
+ 176               	.LFB123:
+  38:keyboards/crkbd/lib/keylogger.c **** 
+  39:keyboards/crkbd/lib/keylogger.c **** const char *read_keylog(void) {
+ 177               		.loc 1 39 31 is_stmt 1 view -0
+ 178               		.cfi_startproc
+ 179               	/* prologue: function */
+ 180               	/* frame size = 0 */
+ 181               	/* stack size = 0 */
+ 182               	.L__stack_usage = 0
+  40:keyboards/crkbd/lib/keylogger.c ****   return keylog_str;
+ 183               		.loc 1 40 3 view .LVU32
+  41:keyboards/crkbd/lib/keylogger.c **** }
+ 184               		.loc 1 41 1 is_stmt 0 view .LVU33
+ 185 0000 80E0      		ldi r24,lo8(keylog_str)
+ 186 0002 90E0      		ldi r25,hi8(keylog_str)
+ 187               	/* epilogue start */
+ 188 0004 0895      		ret
+ 189               		.cfi_endproc
+ 190               	.LFE123:
+ 192               		.section	.text.read_keylogs,"ax",@progbits
+ 193               	.global	read_keylogs
+ 195               	read_keylogs:
+ 196               	.LFB124:
+  42:keyboards/crkbd/lib/keylogger.c **** 
+  43:keyboards/crkbd/lib/keylogger.c **** const char *read_keylogs(void) {
+ 197               		.loc 1 43 32 is_stmt 1 view -0
+ 198               		.cfi_startproc
+ 199               	/* prologue: function */
+ 200               	/* frame size = 0 */
+ 201               	/* stack size = 0 */
+ 202               	.L__stack_usage = 0
+  44:keyboards/crkbd/lib/keylogger.c ****   return keylogs_str;
+ 203               		.loc 1 44 3 view .LVU35
+  45:keyboards/crkbd/lib/keylogger.c **** }
+ 204               		.loc 1 45 1 is_stmt 0 view .LVU36
+ 205 0000 80E0      		ldi r24,lo8(keylogs_str)
+ 206 0002 90E0      		ldi r25,hi8(keylogs_str)
+ 207               	/* epilogue start */
+ 208 0004 0895      		ret
+ 209               		.cfi_endproc
+ 210               	.LFE124:
+ 212               	.global	code_to_name
+ 213               		.section	.rodata.code_to_name,"a"
+ 216               	code_to_name:
+ 217 0000 20        		.byte	32
+ 218 0001 20        		.byte	32
+ 219 0002 20        		.byte	32
+ 220 0003 20        		.byte	32
+ 221 0004 61        		.byte	97
+ 222 0005 62        		.byte	98
+ 223 0006 63        		.byte	99
+ 224 0007 64        		.byte	100
+ 225 0008 65        		.byte	101
+ 226 0009 66        		.byte	102
+ 227 000a 67        		.byte	103
+ 228 000b 68        		.byte	104
+ 229 000c 69        		.byte	105
+ 230 000d 6A        		.byte	106
+ 231 000e 6B        		.byte	107
+ 232 000f 6C        		.byte	108
+ 233 0010 6D        		.byte	109
+ 234 0011 6E        		.byte	110
+ 235 0012 6F        		.byte	111
+ 236 0013 70        		.byte	112
+ 237 0014 71        		.byte	113
+ 238 0015 72        		.byte	114
+ 239 0016 73        		.byte	115
+ 240 0017 74        		.byte	116
+ 241 0018 75        		.byte	117
+ 242 0019 76        		.byte	118
+ 243 001a 77        		.byte	119
+ 244 001b 78        		.byte	120
+ 245 001c 79        		.byte	121
+ 246 001d 7A        		.byte	122
+ 247 001e 31        		.byte	49
+ 248 001f 32        		.byte	50
+ 249 0020 33        		.byte	51
+ 250 0021 34        		.byte	52
+ 251 0022 35        		.byte	53
+ 252 0023 36        		.byte	54
+ 253 0024 37        		.byte	55
+ 254 0025 38        		.byte	56
+ 255 0026 39        		.byte	57
+ 256 0027 30        		.byte	48
+ 257 0028 52        		.byte	82
+ 258 0029 45        		.byte	69
+ 259 002a 42        		.byte	66
+ 260 002b 54        		.byte	84
+ 261 002c 20        		.byte	32
+ 262 002d 20        		.byte	32
+ 263 002e 20        		.byte	32
+ 264 002f 20        		.byte	32
+ 265 0030 20        		.byte	32
+ 266 0031 20        		.byte	32
+ 267 0032 20        		.byte	32
+ 268 0033 3B        		.byte	59
+ 269 0034 27        		.byte	39
+ 270 0035 20        		.byte	32
+ 271 0036 2C        		.byte	44
+ 272 0037 2E        		.byte	46
+ 273 0038 2F        		.byte	47
+ 274 0039 20        		.byte	32
+ 275 003a 20        		.byte	32
+ 276 003b 20        		.byte	32
+ 277               	.global	keylogs_str_idx
+ 278               		.section	.bss.keylogs_str_idx,"aw",@nobits
+ 281               	keylogs_str_idx:
+ 282 0000 0000      		.zero	2
+ 283               	.global	keylogs_str
+ 284               		.section	.bss.keylogs_str,"aw",@nobits
+ 287               	keylogs_str:
+ 288 0000 0000 0000 		.zero	21
+ 288      0000 0000 
+ 288      0000 0000 
+ 288      0000 0000 
+ 288      0000 0000 
+ 289               	.global	keylog_str
+ 290               		.section	.bss.keylog_str,"aw",@nobits
+ 293               	keylog_str:
+ 294 0000 0000 0000 		.zero	24
+ 294      0000 0000 
+ 294      0000 0000 
+ 294      0000 0000 
+ 294      0000 0000 
+ 295               		.text
+ 296               	.Letext0:
+ 297               		.file 2 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdint.h"
+ 298               		.file 3 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/lib/avr-gcc/8/gcc/avr/8.4.0/include/stddef.h"
+ 299               		.file 4 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdio.h"
+ 300               		.file 5 "keyboards/crkbd/rev1/legacy/legacy.h"
+ 301               		.file 6 "tmk_core/common/keyboard.h"
+ 302               		.file 7 "tmk_core/common/action.h"
+ 303               		.file 8 "tmk_core/common/report.h"
+ 304               		.file 9 "tmk_core/common/host_driver.h"
+ 305               		.file 10 "tmk_core/common/host.h"
+ 306               		.file 11 "tmk_core/common/debug.h"
+ 307               		.file 12 "quantum/keycode_config.h"
+ 308               		.file 13 "quantum/keymap.h"
+ 309               		.file 14 "./quantum/color.h"
+ 310               		.file 15 "quantum/rgblight.h"
+ 311               		.file 16 "tmk_core/common/action_layer.h"
+ 312               		.file 17 "tmk_core/common/timer.h"
+ 313               		.file 18 "tmk_core/common/action_util.h"
+ 314               		.file 19 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdlib.h"
+ 315               		.file 20 "quantum/quantum.h"
+ 316               		.file 21 "keyboards/crkbd/rev1/legacy/split_util.h"
+ 317               		.file 22 "lib/lufa/LUFA/Drivers/USB/Core/AVR8/../StdRequestType.h"
+ 318               		.file 23 "lib/lufa/LUFA/Drivers/USB/Core/AVR8/../DeviceStandardReq.h"
+ 319               		.file 24 "lib/lufa/LUFA/Drivers/USB/Core/USBTask.h"
+ 320               		.file 25 "lib/lufa/LUFA/Drivers/USB/Core/HostStandardReq.h"
+ 321               		.file 26 "tmk_core/protocol/lufa/lufa.h"
+ 322               		.file 27 "keyboards/crkbd/rev1/legacy/ssd1306.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 keylogger.c
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:16     .text.set_keylog:0000000000000000 set_keylog
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:20     .text.set_keylog:0000000000000000 .Loc.0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:21     .text.set_keylog:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:22     .text.set_keylog:0000000000000000 .Loc.1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:31     .text.set_keylog:0000000000000002 .Loc.2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:33     .text.set_keylog:0000000000000002 .Loc.3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:34     .text.set_keylog:0000000000000002 .Loc.4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:36     .text.set_keylog:0000000000000004 .Loc.5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:40     .text.set_keylog:000000000000000a .Loc.6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:41     .text.set_keylog:000000000000000a .Loc.7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:216    .rodata.code_to_name:0000000000000000 code_to_name
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:48     .text.set_keylog:0000000000000012 .Loc.8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:64     .text.set_keylog:000000000000001e .Loc.9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:293    .bss.keylog_str:0000000000000000 keylog_str
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:103    .text.set_keylog:0000000000000042 .Loc.10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:104    .text.set_keylog:0000000000000042 .Loc.11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:281    .bss.keylogs_str_idx:0000000000000000 keylogs_str_idx
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:119    .text.set_keylog:000000000000005e .Loc.12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:120    .text.set_keylog:000000000000005e .Loc.13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:123    .text.set_keylog:0000000000000066 .Loc.14
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:125    .text.set_keylog:0000000000000066 .Loc.15
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:127    .text.set_keylog:0000000000000066 .Loc.16
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:287    .bss.keylogs_str:0000000000000000 keylogs_str
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:130    .text.set_keylog:000000000000006a .Loc.17
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:134    .text.set_keylog:000000000000006c .Loc.18
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:135    .text.set_keylog:000000000000006c .Loc.19
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:138    .text.set_keylog:000000000000006e .Loc.20
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:139    .text.set_keylog:000000000000006e .Loc.21
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:140    .text.set_keylog:000000000000006e .Loc.22
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:147    .text.set_keylog:0000000000000076 .Loc.23
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:149    .text.set_keylog:0000000000000076 .Loc.24
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:150    .text.set_keylog:0000000000000076 .Loc.25
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:153    .text.set_keylog:000000000000007e .Loc.26
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:158    .text.set_keylog:0000000000000086 .Loc.27
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:159    .text.set_keylog:0000000000000086 .Loc.28
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:164    .text.set_keylog:0000000000000090 .Loc.29
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:167    .text.set_keylog:0000000000000092 .Loc.30
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:169    .text.set_keylog:0000000000000094 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:175    .text.read_keylog:0000000000000000 read_keylog
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:177    .text.read_keylog:0000000000000000 .Loc.31
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:178    .text.read_keylog:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:183    .text.read_keylog:0000000000000000 .Loc.32
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:184    .text.read_keylog:0000000000000000 .Loc.33
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:189    .text.read_keylog:0000000000000006 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:195    .text.read_keylogs:0000000000000000 read_keylogs
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:197    .text.read_keylogs:0000000000000000 .Loc.34
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:198    .text.read_keylogs:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:203    .text.read_keylogs:0000000000000000 .Loc.35
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:204    .text.read_keylogs:0000000000000000 .Loc.36
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:209    .text.read_keylogs:0000000000000006 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:172    .text.set_keylog:0000000000000094 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:192    .text.read_keylog:0000000000000006 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:213    .text.read_keylogs:0000000000000006 L0
+                     .debug_frame:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:47     .text.set_keylog:0000000000000012 .L2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:146    .text.set_keylog:0000000000000076 .L3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:133    .text.set_keylog:000000000000006c .L4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2018   .debug_abbrev:0000000000000000 .Ldebug_abbrev0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2895   .debug_ranges:0000000000000000 .Ldebug_ranges0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2905   .debug_line:0000000000000000 .Ldebug_line0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:196    .text.read_keylogs:0000000000000000 .LFB124
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:210    .text.read_keylogs:0000000000000006 .LFE124
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:176    .text.read_keylog:0000000000000000 .LFB123
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:190    .text.read_keylog:0000000000000006 .LFE123
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:18     .text.set_keylog:0000000000000000 .LFB122
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:170    .text.set_keylog:0000000000000094 .LFE122
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2656   .debug_loc:0000000000000000 .LLST0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2766   .debug_loc:00000000000000e9 .LLST1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2761   .debug_loc:00000000000000e5 .LVUS1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2790   .debug_loc:0000000000000113 .LLST2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2785   .debug_loc:000000000000010f .LVUS2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2816   .debug_loc:000000000000013f .LLST3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2809   .debug_loc:0000000000000139 .LVUS3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:124    .text.set_keylog:0000000000000066 .LBB2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:148    .text.set_keylog:0000000000000076 .LBE2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2843   .debug_loc:0000000000000173 .LLST4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:2834   .debug_loc:000000000000016b .LVUS4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:102    .text.set_keylog:0000000000000042 .LVL4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:24     .text.set_keylog:0000000000000002 .LCFI0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:50     .text.set_keylog:0000000000000014 .LCFI1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:53     .text.set_keylog:0000000000000016 .LCFI2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:56     .text.set_keylog:0000000000000018 .LCFI3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:59     .text.set_keylog:000000000000001a .LCFI4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:66     .text.set_keylog:0000000000000020 .LCFI5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:69     .text.set_keylog:0000000000000022 .LCFI6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:73     .text.set_keylog:0000000000000026 .LCFI7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:76     .text.set_keylog:0000000000000028 .LCFI8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:81     .text.set_keylog:000000000000002e .LCFI9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:84     .text.set_keylog:0000000000000030 .LCFI10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:87     .text.set_keylog:0000000000000032 .LCFI11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:91     .text.set_keylog:0000000000000036 .LCFI12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:96     .text.set_keylog:000000000000003c .LCFI13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:99     .text.set_keylog:000000000000003e .LCFI14
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:113    .text.set_keylog:0000000000000052 .LCFI15
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:17     .text.set_keylog:0000000000000000 .LVL0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:63     .text.set_keylog:000000000000001e .LVL3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:32     .text.set_keylog:0000000000000002 .LVL1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:46     .text.set_keylog:0000000000000012 .LVL2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:166    .text.set_keylog:0000000000000092 .LVL9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:126    .text.set_keylog:0000000000000066 .LVL5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:132    .text.set_keylog:000000000000006c .LVL6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:137    .text.set_keylog:000000000000006e .LVL7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:145    .text.set_keylog:0000000000000076 .LVL8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc3j9Wor.s:324    .debug_info:0000000000000000 .Ldebug_info0
+
+UNDEFINED SYMBOLS
+snprintf
+__do_copy_data
+__do_clear_bss

@@ -1,0 +1,1361 @@
+   1               		.file	"keymap.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               		.section	.text.update_tri_layer_RGB,"ax",@progbits
+  11               	.global	update_tri_layer_RGB
+  13               	update_tri_layer_RGB:
+  14               	.LVL0:
+  15               	.LFB122:
+  16               		.file 1 "keyboards/crkbd/keymaps/thefrey/keymap.c"
+   1:keyboards/crkbd/keymaps/thefrey/keymap.c **** #include QMK_KEYBOARD_H
+   2:keyboards/crkbd/keymaps/thefrey/keymap.c **** #include "bootloader.h"
+   3:keyboards/crkbd/keymaps/thefrey/keymap.c **** #ifdef PROTOCOL_LUFA
+   4:keyboards/crkbd/keymaps/thefrey/keymap.c ****   #include "lufa.h"
+   5:keyboards/crkbd/keymaps/thefrey/keymap.c ****   #include "split_util.h"
+   6:keyboards/crkbd/keymaps/thefrey/keymap.c **** #endif
+   7:keyboards/crkbd/keymaps/thefrey/keymap.c **** #ifdef SSD1306OLED
+   8:keyboards/crkbd/keymaps/thefrey/keymap.c ****   #include "ssd1306.h"
+   9:keyboards/crkbd/keymaps/thefrey/keymap.c **** #endif
+  10:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+  11:keyboards/crkbd/keymaps/thefrey/keymap.c **** extern keymap_config_t keymap_config;
+  12:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+  13:keyboards/crkbd/keymaps/thefrey/keymap.c **** #ifdef RGBLIGHT_ENABLE
+  14:keyboards/crkbd/keymaps/thefrey/keymap.c **** //Following line allows macro to read current RGB settings
+  15:keyboards/crkbd/keymaps/thefrey/keymap.c **** extern rgblight_config_t rgblight_config;
+  16:keyboards/crkbd/keymaps/thefrey/keymap.c **** #endif
+  17:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+  18:keyboards/crkbd/keymaps/thefrey/keymap.c **** extern uint8_t is_master;
+  19:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+  20:keyboards/crkbd/keymaps/thefrey/keymap.c **** // Each layer gets a name for readability, which is then used in the keymap matrix below.
+  21:keyboards/crkbd/keymaps/thefrey/keymap.c **** // The underscores don't mean anything - you can have a layer called STUFF or any other name.
+  22:keyboards/crkbd/keymaps/thefrey/keymap.c **** // Layer names don't all need to be of the same length, obviously, and you can also skip them
+  23:keyboards/crkbd/keymaps/thefrey/keymap.c **** // entirely and just use numbers.
+  24:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define _QWERTY 0
+  25:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define _LOWER 1
+  26:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define _RAISE 2
+  27:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define _ADJUST 3
+  28:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+  29:keyboards/crkbd/keymaps/thefrey/keymap.c **** enum custom_keycodes {
+  30:keyboards/crkbd/keymaps/thefrey/keymap.c ****   QWERTY = SAFE_RANGE,
+  31:keyboards/crkbd/keymaps/thefrey/keymap.c ****   LOWER,
+  32:keyboards/crkbd/keymaps/thefrey/keymap.c ****   RAISE,
+  33:keyboards/crkbd/keymaps/thefrey/keymap.c ****   ADJUST,
+  34:keyboards/crkbd/keymaps/thefrey/keymap.c ****   BACKLIT,
+  35:keyboards/crkbd/keymaps/thefrey/keymap.c ****   RGBRST
+  36:keyboards/crkbd/keymaps/thefrey/keymap.c **** };
+  37:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+  38:keyboards/crkbd/keymaps/thefrey/keymap.c **** enum macro_keycodes {
+  39:keyboards/crkbd/keymaps/thefrey/keymap.c ****   KC_SAMPLEMACRO,
+  40:keyboards/crkbd/keymaps/thefrey/keymap.c **** };
+  41:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+  42:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC______ KC_TRNS
+  43:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_XXXXX KC_NO
+  44:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_LOWER LOWER
+  45:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_RAISE RAISE
+  46:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_RST   RESET
+  47:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_LRST  RGBRST
+  48:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_LTOG  RGB_TOG
+  49:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_LHUI  RGB_HUI
+  50:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_LHUD  RGB_HUD
+  51:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_LSAI  RGB_SAI
+  52:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_LSAD  RGB_SAD
+  53:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_LVAI  RGB_VAI
+  54:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_LVAD  RGB_VAD
+  55:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_LMOD  RGB_MOD
+  56:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_CTLTB CTL_T(KC_TAB)
+  57:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_GUIEI GUI_T(KC_LANG2)
+  58:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_ALTKN ALT_T(KC_LANG1)
+  59:keyboards/crkbd/keymaps/thefrey/keymap.c **** #define KC_LGESC LGUI_T(KC_ESC)
+  60:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+  61:keyboards/crkbd/keymaps/thefrey/keymap.c **** const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+  62:keyboards/crkbd/keymaps/thefrey/keymap.c ****   [_QWERTY] = LAYOUT_kc( \
+  63:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //,-----------------------------------------.                ,-----------------------------------
+  64:keyboards/crkbd/keymaps/thefrey/keymap.c ****         TAB,     Q,     W,     E,     R,     T,                      Y,     U,     I,     O,     P,
+  65:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //|------+------+------+------+------+------|                |------+------+------+------+------+
+  66:keyboards/crkbd/keymaps/thefrey/keymap.c ****       CTLTB,     A,     S,     D,     F,     G,                      H,     J,     K,     L,  SCLN,
+  67:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //|------+------+------+------+------+------|                |------+------+------+------+------+
+  68:keyboards/crkbd/keymaps/thefrey/keymap.c ****        LSFT,     Z,     X,     C,     V,     B,                      N,     M,  COMM,   DOT,  SLSH,
+  69:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //|------+------+------+------+------+------+------|  |------+------+------+------+------+------+
+  70:keyboards/crkbd/keymaps/thefrey/keymap.c ****                                   GUIEI, LOWER,   SPC,      ENT, RAISE, ALTKN \
+  71:keyboards/crkbd/keymaps/thefrey/keymap.c ****                               //`--------------------'  `--------------------'
+  72:keyboards/crkbd/keymaps/thefrey/keymap.c ****   ),
+  73:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+  74:keyboards/crkbd/keymaps/thefrey/keymap.c ****   [_LOWER] = LAYOUT_kc( \
+  75:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //,-----------------------------------------.                ,-----------------------------------
+  76:keyboards/crkbd/keymaps/thefrey/keymap.c ****         ESC,     1,     2,     3,     4,     5,                      6,     7,     8,     9,     0,
+  77:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //|------+------+------+------+------+------|                |------+------+------+------+------+
+  78:keyboards/crkbd/keymaps/thefrey/keymap.c ****       CTLTB, MUTE,   VOLD,  VOLU,  PGUP,  PGDN,                   LEFT,  DOWN,    UP, RIGHT,  HOME,
+  79:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //|------+------+------+------+------+------|                |------+------+------+------+------+
+  80:keyboards/crkbd/keymaps/thefrey/keymap.c ****        LSFT,    F1,    F2,    F3,    F4,    F5,                   PGUP,  PGDN,    F8,    F9,   F10,
+  81:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //|------+------+------+------+------+------+------|  |------+------+------+------+------+------+
+  82:keyboards/crkbd/keymaps/thefrey/keymap.c ****                                   GUIEI, LOWER,   SPC,      ENT, RAISE, ALTKN \
+  83:keyboards/crkbd/keymaps/thefrey/keymap.c ****                               //`--------------------'  `--------------------'
+  84:keyboards/crkbd/keymaps/thefrey/keymap.c ****   ),
+  85:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+  86:keyboards/crkbd/keymaps/thefrey/keymap.c ****   [_RAISE] = LAYOUT_kc( \
+  87:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //,-----------------------------------------.                ,-----------------------------------
+  88:keyboards/crkbd/keymaps/thefrey/keymap.c ****         ESC,  EXLM,    AT,  HASH,   DLR,  PERC,                   CIRC,  AMPR,  ASTR,  LPRN,  RPRN,
+  89:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //|------+------+------+------+------+------|                |------+------+------+------+------+
+  90:keyboards/crkbd/keymaps/thefrey/keymap.c ****       CTLTB, EQL, MINS, RCBR, PIPE, RBRC,                            LEFT,   DOWN,  UP,  RIGHT,  HO
+  91:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //|------+------+------+------+------+------|                |------+------+------+------+------+
+  92:keyboards/crkbd/keymaps/thefrey/keymap.c ****        LSFT, XXXXX, XXXXX, XXXXX, EQL, MINS,                   UNDS,  PLUS,  LBRC,  RBRC,  BSLS,  T
+  93:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //|------+------+------+------+------+------+------|  |------+------+------+------+------+------+
+  94:keyboards/crkbd/keymaps/thefrey/keymap.c ****                                   GUIEI, LOWER,   SPC,      ENT, RAISE, ALTKN \
+  95:keyboards/crkbd/keymaps/thefrey/keymap.c ****                               //`--------------------'  `--------------------'
+  96:keyboards/crkbd/keymaps/thefrey/keymap.c ****   ),
+  97:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+  98:keyboards/crkbd/keymaps/thefrey/keymap.c ****   [_ADJUST] = LAYOUT_kc( \
+  99:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //,-----------------------------------------.                ,-----------------------------------
+ 100:keyboards/crkbd/keymaps/thefrey/keymap.c ****         RST,  LRST, XXXXX, XXXXX, XXXXX, XXXXX,                  XXXXX, XXXXX, XXXXX, XXXXX, XXXXX,
+ 101:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //|------+------+------+------+------+------|                |------+------+------+------+------+
+ 102:keyboards/crkbd/keymaps/thefrey/keymap.c ****        LTOG,  LHUI,  LSAI,  LVAI, XXXXX, XXXXX,                  XXXXX, XXXXX, XXXXX, XXXXX, XXXXX,
+ 103:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //|------+------+------+------+------+------|                |------+------+------+------+------+
+ 104:keyboards/crkbd/keymaps/thefrey/keymap.c ****        LMOD,  LHUD,  LSAD,  LVAD, XXXXX, XXXXX,                  XXXXX, XXXXX, XXXXX, XXXXX, XXXXX,
+ 105:keyboards/crkbd/keymaps/thefrey/keymap.c ****   //|------+------+------+------+------+------+------|  |------+------+------+------+------+------+
+ 106:keyboards/crkbd/keymaps/thefrey/keymap.c ****                                   GUIEI, LOWER,   SPC,      ENT, RAISE, ALTKN \
+ 107:keyboards/crkbd/keymaps/thefrey/keymap.c ****                               //`--------------------'  `--------------------'
+ 108:keyboards/crkbd/keymaps/thefrey/keymap.c ****   )
+ 109:keyboards/crkbd/keymaps/thefrey/keymap.c **** };
+ 110:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+ 111:keyboards/crkbd/keymaps/thefrey/keymap.c **** int RGB_current_mode;
+ 112:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+ 113:keyboards/crkbd/keymaps/thefrey/keymap.c **** // Setting ADJUST layer RGB back to default
+ 114:keyboards/crkbd/keymaps/thefrey/keymap.c **** void update_tri_layer_RGB(uint8_t layer1, uint8_t layer2, uint8_t layer3) {
+  17               		.loc 1 114 75 view -0
+  18               		.cfi_startproc
+  19               		.loc 1 114 75 is_stmt 0 view .LVU1
+  20 0000 CF93      		push r28
+  21               	.LCFI0:
+  22               		.cfi_def_cfa_offset 3
+  23               		.cfi_offset 28, -2
+  24 0002 DF93      		push r29
+  25               	.LCFI1:
+  26               		.cfi_def_cfa_offset 4
+  27               		.cfi_offset 29, -3
+  28               	/* prologue: function */
+  29               	/* frame size = 0 */
+  30               	/* stack size = 2 */
+  31               	.L__stack_usage = 2
+  32 0004 D62F      		mov r29,r22
+  33 0006 C42F      		mov r28,r20
+ 115:keyboards/crkbd/keymaps/thefrey/keymap.c ****   if (IS_LAYER_ON(layer1) && IS_LAYER_ON(layer2)) {
+  34               		.loc 1 115 3 is_stmt 1 view .LVU2
+  35               		.loc 1 115 7 is_stmt 0 view .LVU3
+  36 0008 0E94 0000 		call layer_state_is
+  37               	.LVL1:
+  38               		.loc 1 115 6 view .LVU4
+  39 000c 8823      		tst r24
+  40 000e 01F0      		breq .L2
+  41               		.loc 1 115 30 discriminator 1 view .LVU5
+  42 0010 8D2F      		mov r24,r29
+  43 0012 0E94 0000 		call layer_state_is
+  44               	.LVL2:
+  45               		.loc 1 115 27 discriminator 1 view .LVU6
+  46 0016 8823      		tst r24
+  47 0018 01F0      		breq .L2
+ 116:keyboards/crkbd/keymaps/thefrey/keymap.c ****     layer_on(layer3);
+  48               		.loc 1 116 5 is_stmt 1 view .LVU7
+  49 001a 8C2F      		mov r24,r28
+  50               	/* epilogue start */
+ 117:keyboards/crkbd/keymaps/thefrey/keymap.c ****   } else {
+ 118:keyboards/crkbd/keymaps/thefrey/keymap.c ****     layer_off(layer3);
+ 119:keyboards/crkbd/keymaps/thefrey/keymap.c ****   }
+ 120:keyboards/crkbd/keymaps/thefrey/keymap.c **** }
+  51               		.loc 1 120 1 is_stmt 0 view .LVU8
+  52 001c DF91      		pop r29
+  53               	.LVL3:
+  54               		.loc 1 120 1 view .LVU9
+  55 001e CF91      		pop r28
+  56               	.LVL4:
+ 116:keyboards/crkbd/keymaps/thefrey/keymap.c ****     layer_on(layer3);
+  57               		.loc 1 116 5 view .LVU10
+  58 0020 0C94 0000 		jmp layer_on
+  59               	.LVL5:
+  60               	.L2:
+ 118:keyboards/crkbd/keymaps/thefrey/keymap.c ****   }
+  61               		.loc 1 118 5 is_stmt 1 view .LVU11
+  62 0024 8C2F      		mov r24,r28
+  63               	/* epilogue start */
+  64               		.loc 1 120 1 is_stmt 0 view .LVU12
+  65 0026 DF91      		pop r29
+  66               	.LVL6:
+  67               		.loc 1 120 1 view .LVU13
+  68 0028 CF91      		pop r28
+  69               	.LVL7:
+ 118:keyboards/crkbd/keymaps/thefrey/keymap.c ****   }
+  70               		.loc 1 118 5 view .LVU14
+  71 002a 0C94 0000 		jmp layer_off
+  72               	.LVL8:
+ 118:keyboards/crkbd/keymaps/thefrey/keymap.c ****   }
+  73               		.loc 1 118 5 view .LVU15
+  74               		.cfi_endproc
+  75               	.LFE122:
+  77               		.section	.text.matrix_init_user,"ax",@progbits
+  78               	.global	matrix_init_user
+  80               	matrix_init_user:
+  81               	.LFB123:
+ 121:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+ 122:keyboards/crkbd/keymaps/thefrey/keymap.c **** void matrix_init_user(void) {
+  82               		.loc 1 122 29 is_stmt 1 view -0
+  83               		.cfi_startproc
+  84               	/* prologue: function */
+  85               	/* frame size = 0 */
+  86               	/* stack size = 0 */
+  87               	.L__stack_usage = 0
+ 123:keyboards/crkbd/keymaps/thefrey/keymap.c ****     #ifdef RGBLIGHT_ENABLE
+ 124:keyboards/crkbd/keymaps/thefrey/keymap.c ****       RGB_current_mode = rgblight_config.mode;
+  88               		.loc 1 124 7 view .LVU17
+  89               		.loc 1 124 41 is_stmt 0 view .LVU18
+  90 0000 8091 0000 		lds r24,rgblight_config
+  91 0004 8695      		lsr r24
+  92 0006 90E0      		ldi r25,0
+  93 0008 9093 0000 		sts RGB_current_mode+1,r25
+  94 000c 8093 0000 		sts RGB_current_mode,r24
+ 125:keyboards/crkbd/keymaps/thefrey/keymap.c ****     #endif
+ 126:keyboards/crkbd/keymaps/thefrey/keymap.c ****     //SSD1306 OLED init, make sure to add #define SSD1306OLED in config.h
+ 127:keyboards/crkbd/keymaps/thefrey/keymap.c ****     #ifdef SSD1306OLED
+ 128:keyboards/crkbd/keymaps/thefrey/keymap.c ****         iota_gfx_init(!has_usb());   // turns on the display
+  95               		.loc 1 128 9 is_stmt 1 view .LVU19
+  96               		.loc 1 128 24 is_stmt 0 view .LVU20
+  97 0010 0E94 0000 		call has_usb
+  98               	.LVL9:
+  99               		.loc 1 128 9 view .LVU21
+ 100 0014 91E0      		ldi r25,lo8(1)
+ 101 0016 8927      		eor r24,r25
+ 102 0018 0C94 0000 		jmp iota_gfx_init
+ 103               	.LVL10:
+ 104               		.cfi_endproc
+ 105               	.LFE123:
+ 107               		.section	.text.matrix_scan_user,"ax",@progbits
+ 108               	.global	matrix_scan_user
+ 110               	matrix_scan_user:
+ 111               	.LFB124:
+ 129:keyboards/crkbd/keymaps/thefrey/keymap.c ****     #endif
+ 130:keyboards/crkbd/keymaps/thefrey/keymap.c **** }
+ 131:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+ 132:keyboards/crkbd/keymaps/thefrey/keymap.c **** //SSD1306 OLED update loop, make sure to add #define SSD1306OLED in config.h
+ 133:keyboards/crkbd/keymaps/thefrey/keymap.c **** #ifdef SSD1306OLED
+ 134:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+ 135:keyboards/crkbd/keymaps/thefrey/keymap.c **** // When add source files to SRC in rules.mk, you can use functions.
+ 136:keyboards/crkbd/keymaps/thefrey/keymap.c **** const char *read_layer_state(void);
+ 137:keyboards/crkbd/keymaps/thefrey/keymap.c **** const char *read_logo(void);
+ 138:keyboards/crkbd/keymaps/thefrey/keymap.c **** void set_keylog(uint16_t keycode, keyrecord_t *record);
+ 139:keyboards/crkbd/keymaps/thefrey/keymap.c **** const char *read_keylog(void);
+ 140:keyboards/crkbd/keymaps/thefrey/keymap.c **** const char *read_keylogs(void);
+ 141:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+ 142:keyboards/crkbd/keymaps/thefrey/keymap.c **** // const char *read_mode_icon(bool swap);
+ 143:keyboards/crkbd/keymaps/thefrey/keymap.c **** // const char *read_host_led_state(void);
+ 144:keyboards/crkbd/keymaps/thefrey/keymap.c **** // void set_timelog(void);
+ 145:keyboards/crkbd/keymaps/thefrey/keymap.c **** // const char *read_timelog(void);
+ 146:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+ 147:keyboards/crkbd/keymaps/thefrey/keymap.c **** void matrix_scan_user(void) {
+ 112               		.loc 1 147 29 is_stmt 1 view -0
+ 113               		.cfi_startproc
+ 114               	/* prologue: function */
+ 115               	/* frame size = 0 */
+ 116               	/* stack size = 0 */
+ 117               	.L__stack_usage = 0
+ 148:keyboards/crkbd/keymaps/thefrey/keymap.c ****    iota_gfx_task();
+ 118               		.loc 1 148 4 view .LVU23
+ 119 0000 0C94 0000 		jmp iota_gfx_task
+ 120               	.LVL11:
+ 121               		.cfi_endproc
+ 122               	.LFE124:
+ 124               		.section	.text.matrix_render_user,"ax",@progbits
+ 125               	.global	matrix_render_user
+ 127               	matrix_render_user:
+ 128               	.LVL12:
+ 129               	.LFB125:
+ 149:keyboards/crkbd/keymaps/thefrey/keymap.c **** }
+ 150:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+ 151:keyboards/crkbd/keymaps/thefrey/keymap.c **** void matrix_render_user(struct CharacterMatrix *matrix) {
+ 130               		.loc 1 151 57 view -0
+ 131               		.cfi_startproc
+ 132               		.loc 1 151 57 is_stmt 0 view .LVU25
+ 133 0000 CF93      		push r28
+ 134               	.LCFI2:
+ 135               		.cfi_def_cfa_offset 3
+ 136               		.cfi_offset 28, -2
+ 137 0002 DF93      		push r29
+ 138               	.LCFI3:
+ 139               		.cfi_def_cfa_offset 4
+ 140               		.cfi_offset 29, -3
+ 141               	/* prologue: function */
+ 142               	/* frame size = 0 */
+ 143               	/* stack size = 2 */
+ 144               	.L__stack_usage = 2
+ 145 0004 EC01      		movw r28,r24
+ 152:keyboards/crkbd/keymaps/thefrey/keymap.c ****   if (is_master) {
+ 146               		.loc 1 152 3 is_stmt 1 view .LVU26
+ 147               		.loc 1 152 6 is_stmt 0 view .LVU27
+ 148 0006 8091 0000 		lds r24,is_master
+ 149               	.LVL13:
+ 150               		.loc 1 152 6 view .LVU28
+ 151 000a 8823      		tst r24
+ 152 000c 01F0      		breq .L12
+ 153:keyboards/crkbd/keymaps/thefrey/keymap.c ****     // If you want to change the display of OLED, you need to change here
+ 154:keyboards/crkbd/keymaps/thefrey/keymap.c ****     matrix_write_ln(matrix, read_layer_state());
+ 153               		.loc 1 154 5 is_stmt 1 view .LVU29
+ 154 000e 0E94 0000 		call read_layer_state
+ 155               	.LVL14:
+ 156 0012 BC01      		movw r22,r24
+ 157 0014 CE01      		movw r24,r28
+ 158 0016 0E94 0000 		call matrix_write_ln
+ 159               	.LVL15:
+ 155:keyboards/crkbd/keymaps/thefrey/keymap.c ****     matrix_write_ln(matrix, read_keylog());
+ 160               		.loc 1 155 5 view .LVU30
+ 161 001a 0E94 0000 		call read_keylog
+ 162               	.LVL16:
+ 163 001e BC01      		movw r22,r24
+ 164 0020 CE01      		movw r24,r28
+ 165 0022 0E94 0000 		call matrix_write_ln
+ 166               	.LVL17:
+ 156:keyboards/crkbd/keymaps/thefrey/keymap.c ****     matrix_write_ln(matrix, read_keylogs());
+ 167               		.loc 1 156 5 view .LVU31
+ 168 0026 0E94 0000 		call read_keylogs
+ 169               	.LVL18:
+ 170 002a BC01      		movw r22,r24
+ 171 002c CE01      		movw r24,r28
+ 172               	/* epilogue start */
+ 157:keyboards/crkbd/keymaps/thefrey/keymap.c ****     //matrix_write_ln(matrix, read_mode_icon(keymap_config.swap_lalt_lgui));
+ 158:keyboards/crkbd/keymaps/thefrey/keymap.c ****     //matrix_write_ln(matrix, read_host_led_state());
+ 159:keyboards/crkbd/keymaps/thefrey/keymap.c ****     //matrix_write_ln(matrix, read_timelog());
+ 160:keyboards/crkbd/keymaps/thefrey/keymap.c ****   } else {
+ 161:keyboards/crkbd/keymaps/thefrey/keymap.c ****     matrix_write(matrix, read_logo());
+ 162:keyboards/crkbd/keymaps/thefrey/keymap.c ****   }
+ 163:keyboards/crkbd/keymaps/thefrey/keymap.c **** }
+ 173               		.loc 1 163 1 is_stmt 0 view .LVU32
+ 174 002e DF91      		pop r29
+ 175 0030 CF91      		pop r28
+ 176               	.LVL19:
+ 156:keyboards/crkbd/keymaps/thefrey/keymap.c ****     matrix_write_ln(matrix, read_keylogs());
+ 177               		.loc 1 156 5 view .LVU33
+ 178 0032 0C94 0000 		jmp matrix_write_ln
+ 179               	.LVL20:
+ 180               	.L12:
+ 161:keyboards/crkbd/keymaps/thefrey/keymap.c ****   }
+ 181               		.loc 1 161 5 is_stmt 1 view .LVU34
+ 182 0036 0E94 0000 		call read_logo
+ 183               	.LVL21:
+ 184 003a BC01      		movw r22,r24
+ 185 003c CE01      		movw r24,r28
+ 186               	/* epilogue start */
+ 187               		.loc 1 163 1 is_stmt 0 view .LVU35
+ 188 003e DF91      		pop r29
+ 189 0040 CF91      		pop r28
+ 190               	.LVL22:
+ 161:keyboards/crkbd/keymaps/thefrey/keymap.c ****   }
+ 191               		.loc 1 161 5 view .LVU36
+ 192 0042 0C94 0000 		jmp matrix_write
+ 193               	.LVL23:
+ 161:keyboards/crkbd/keymaps/thefrey/keymap.c ****   }
+ 194               		.loc 1 161 5 view .LVU37
+ 195               		.cfi_endproc
+ 196               	.LFE125:
+ 198               		.section	.text.matrix_update,"ax",@progbits
+ 199               	.global	matrix_update
+ 201               	matrix_update:
+ 202               	.LVL24:
+ 203               	.LFB126:
+ 164:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+ 165:keyboards/crkbd/keymaps/thefrey/keymap.c **** void matrix_update(struct CharacterMatrix *dest, const struct CharacterMatrix *source) {
+ 204               		.loc 1 165 88 is_stmt 1 view -0
+ 205               		.cfi_startproc
+ 206               		.loc 1 165 88 is_stmt 0 view .LVU39
+ 207 0000 0F93      		push r16
+ 208               	.LCFI4:
+ 209               		.cfi_def_cfa_offset 3
+ 210               		.cfi_offset 16, -2
+ 211 0002 1F93      		push r17
+ 212               	.LCFI5:
+ 213               		.cfi_def_cfa_offset 4
+ 214               		.cfi_offset 17, -3
+ 215 0004 CF93      		push r28
+ 216               	.LCFI6:
+ 217               		.cfi_def_cfa_offset 5
+ 218               		.cfi_offset 28, -4
+ 219 0006 DF93      		push r29
+ 220               	.LCFI7:
+ 221               		.cfi_def_cfa_offset 6
+ 222               		.cfi_offset 29, -5
+ 223               	/* prologue: function */
+ 224               	/* frame size = 0 */
+ 225               	/* stack size = 4 */
+ 226               	.L__stack_usage = 4
+ 227 0008 EC01      		movw r28,r24
+ 228 000a 8B01      		movw r16,r22
+ 166:keyboards/crkbd/keymaps/thefrey/keymap.c ****   if (memcmp(dest->display, source->display, sizeof(dest->display))) {
+ 229               		.loc 1 166 3 is_stmt 1 view .LVU40
+ 230               		.loc 1 166 7 is_stmt 0 view .LVU41
+ 231 000c 44E5      		ldi r20,lo8(84)
+ 232 000e 50E0      		ldi r21,0
+ 233 0010 0E94 0000 		call memcmp
+ 234               	.LVL25:
+ 235               		.loc 1 166 6 view .LVU42
+ 236 0014 892B      		or r24,r25
+ 237 0016 01F0      		breq .L13
+ 167:keyboards/crkbd/keymaps/thefrey/keymap.c ****     memcpy(dest->display, source->display, sizeof(dest->display));
+ 238               		.loc 1 167 5 is_stmt 1 view .LVU43
+ 239 0018 84E5      		ldi r24,lo8(84)
+ 240 001a F801      		movw r30,r16
+ 241 001c DE01      		movw r26,r28
+ 242               		0:
+ 243 001e 0190      		ld r0,Z+
+ 244 0020 0D92      		st X+,r0
+ 245 0022 8A95      		dec r24
+ 246 0024 01F4      		brne 0b
+ 168:keyboards/crkbd/keymaps/thefrey/keymap.c ****     dest->dirty = true;
+ 247               		.loc 1 168 5 view .LVU44
+ 248               		.loc 1 168 17 is_stmt 0 view .LVU45
+ 249 0026 CA5A      		subi r28,-86
+ 250 0028 DF4F      		sbci r29,-1
+ 251               	.LVL26:
+ 252               		.loc 1 168 17 view .LVU46
+ 253 002a 81E0      		ldi r24,lo8(1)
+ 254 002c 8883      		st Y,r24
+ 255               	.LVL27:
+ 256               	.L13:
+ 257               	/* epilogue start */
+ 169:keyboards/crkbd/keymaps/thefrey/keymap.c ****   }
+ 170:keyboards/crkbd/keymaps/thefrey/keymap.c **** }
+ 258               		.loc 1 170 1 view .LVU47
+ 259 002e DF91      		pop r29
+ 260 0030 CF91      		pop r28
+ 261 0032 1F91      		pop r17
+ 262 0034 0F91      		pop r16
+ 263               	.LVL28:
+ 264               		.loc 1 170 1 view .LVU48
+ 265 0036 0895      		ret
+ 266               		.cfi_endproc
+ 267               	.LFE126:
+ 269               		.section	.text.iota_gfx_task_user,"ax",@progbits
+ 270               	.global	iota_gfx_task_user
+ 272               	iota_gfx_task_user:
+ 273               	.LFB127:
+ 171:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+ 172:keyboards/crkbd/keymaps/thefrey/keymap.c **** void iota_gfx_task_user(void) {
+ 274               		.loc 1 172 31 is_stmt 1 view -0
+ 275               		.cfi_startproc
+ 276 0000 CF93      		push r28
+ 277               	.LCFI8:
+ 278               		.cfi_def_cfa_offset 3
+ 279               		.cfi_offset 28, -2
+ 280 0002 DF93      		push r29
+ 281               	.LCFI9:
+ 282               		.cfi_def_cfa_offset 4
+ 283               		.cfi_offset 29, -3
+ 284 0004 CDB7      		in r28,__SP_L__
+ 285 0006 DEB7      		in r29,__SP_H__
+ 286               	.LCFI10:
+ 287               		.cfi_def_cfa_register 28
+ 288 0008 C755      		subi r28,87
+ 289 000a D109      		sbc r29,__zero_reg__
+ 290               	.LCFI11:
+ 291               		.cfi_def_cfa_offset 91
+ 292 000c 0FB6      		in __tmp_reg__,__SREG__
+ 293 000e F894      		cli
+ 294 0010 DEBF      		out __SP_H__,r29
+ 295 0012 0FBE      		out __SREG__,__tmp_reg__
+ 296 0014 CDBF      		out __SP_L__,r28
+ 297               	/* prologue: function */
+ 298               	/* frame size = 87 */
+ 299               	/* stack size = 89 */
+ 300               	.L__stack_usage = 89
+ 173:keyboards/crkbd/keymaps/thefrey/keymap.c ****   struct CharacterMatrix matrix;
+ 301               		.loc 1 173 3 view .LVU50
+ 174:keyboards/crkbd/keymaps/thefrey/keymap.c ****   matrix_clear(&matrix);
+ 302               		.loc 1 174 3 view .LVU51
+ 303 0016 CE01      		movw r24,r28
+ 304 0018 0196      		adiw r24,1
+ 305 001a 0E94 0000 		call matrix_clear
+ 306               	.LVL29:
+ 175:keyboards/crkbd/keymaps/thefrey/keymap.c ****   matrix_render_user(&matrix);
+ 307               		.loc 1 175 3 view .LVU52
+ 308 001e CE01      		movw r24,r28
+ 309 0020 0196      		adiw r24,1
+ 310 0022 0E94 0000 		call matrix_render_user
+ 311               	.LVL30:
+ 176:keyboards/crkbd/keymaps/thefrey/keymap.c ****   matrix_update(&display, &matrix);
+ 312               		.loc 1 176 3 view .LVU53
+ 313 0026 BE01      		movw r22,r28
+ 314 0028 6F5F      		subi r22,-1
+ 315 002a 7F4F      		sbci r23,-1
+ 316 002c 80E0      		ldi r24,lo8(display)
+ 317 002e 90E0      		ldi r25,hi8(display)
+ 318 0030 0E94 0000 		call matrix_update
+ 319               	.LVL31:
+ 320               	/* epilogue start */
+ 177:keyboards/crkbd/keymaps/thefrey/keymap.c **** }
+ 321               		.loc 1 177 1 is_stmt 0 view .LVU54
+ 322 0034 C95A      		subi r28,-87
+ 323 0036 DF4F      		sbci r29,-1
+ 324 0038 0FB6      		in __tmp_reg__,__SREG__
+ 325 003a F894      		cli
+ 326 003c DEBF      		out __SP_H__,r29
+ 327 003e 0FBE      		out __SREG__,__tmp_reg__
+ 328 0040 CDBF      		out __SP_L__,r28
+ 329 0042 DF91      		pop r29
+ 330 0044 CF91      		pop r28
+ 331 0046 0895      		ret
+ 332               		.cfi_endproc
+ 333               	.LFE127:
+ 335               		.section	.text.process_record_user,"ax",@progbits
+ 336               	.global	process_record_user
+ 338               	process_record_user:
+ 339               	.LVL32:
+ 340               	.LFB128:
+ 178:keyboards/crkbd/keymaps/thefrey/keymap.c **** #endif//SSD1306OLED
+ 179:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+ 180:keyboards/crkbd/keymaps/thefrey/keymap.c **** bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+ 341               		.loc 1 180 65 is_stmt 1 view -0
+ 342               		.cfi_startproc
+ 343               		.loc 1 180 65 is_stmt 0 view .LVU56
+ 344 0000 0F93      		push r16
+ 345               	.LCFI12:
+ 346               		.cfi_def_cfa_offset 3
+ 347               		.cfi_offset 16, -2
+ 348 0002 1F93      		push r17
+ 349               	.LCFI13:
+ 350               		.cfi_def_cfa_offset 4
+ 351               		.cfi_offset 17, -3
+ 352 0004 CF93      		push r28
+ 353               	.LCFI14:
+ 354               		.cfi_def_cfa_offset 5
+ 355               		.cfi_offset 28, -4
+ 356 0006 DF93      		push r29
+ 357               	.LCFI15:
+ 358               		.cfi_def_cfa_offset 6
+ 359               		.cfi_offset 29, -5
+ 360               	/* prologue: function */
+ 361               	/* frame size = 0 */
+ 362               	/* stack size = 4 */
+ 363               	.L__stack_usage = 4
+ 364 0008 8C01      		movw r16,r24
+ 365 000a EB01      		movw r28,r22
+ 181:keyboards/crkbd/keymaps/thefrey/keymap.c ****   if (record->event.pressed) {
+ 366               		.loc 1 181 3 is_stmt 1 view .LVU57
+ 367               		.loc 1 181 6 is_stmt 0 view .LVU58
+ 368 000c 8A81      		ldd r24,Y+2
+ 369               	.LVL33:
+ 370               		.loc 1 181 6 view .LVU59
+ 371 000e 8823      		tst r24
+ 372 0010 01F0      		breq .L20
+ 182:keyboards/crkbd/keymaps/thefrey/keymap.c **** #ifdef SSD1306OLED
+ 183:keyboards/crkbd/keymaps/thefrey/keymap.c ****     set_keylog(keycode, record);
+ 373               		.loc 1 183 5 is_stmt 1 view .LVU60
+ 374 0012 C801      		movw r24,r16
+ 375 0014 0E94 0000 		call set_keylog
+ 376               	.LVL34:
+ 377               	.L20:
+ 184:keyboards/crkbd/keymaps/thefrey/keymap.c **** #endif
+ 185:keyboards/crkbd/keymaps/thefrey/keymap.c ****     // set_timelog();
+ 186:keyboards/crkbd/keymaps/thefrey/keymap.c ****   }
+ 187:keyboards/crkbd/keymaps/thefrey/keymap.c **** 
+ 188:keyboards/crkbd/keymaps/thefrey/keymap.c ****   switch (keycode) {
+ 378               		.loc 1 188 3 view .LVU61
+ 379 0018 0A32      		cpi r16,42
+ 380 001a 8DE5      		ldi r24,93
+ 381 001c 1807      		cpc r17,r24
+ 382 001e 01F0      		breq .L21
+ 383 0020 00F4      		brsh .L22
+ 384 0022 043C      		cpi r16,-60
+ 385 0024 8CE5      		ldi r24,92
+ 386 0026 1807      		cpc r17,r24
+ 387 0028 01F4      		brne .+2
+ 388 002a 00C0      		rjmp .L23
+ 389 002c 0932      		cpi r16,41
+ 390 002e 1D45      		sbci r17,93
+ 391 0030 01F0      		breq .L24
+ 392               	.LVL35:
+ 393               	.L32:
+ 189:keyboards/crkbd/keymaps/thefrey/keymap.c ****     case QWERTY:
+ 190:keyboards/crkbd/keymaps/thefrey/keymap.c ****       if (record->event.pressed) {
+ 191:keyboards/crkbd/keymaps/thefrey/keymap.c ****         set_single_persistent_default_layer(_QWERTY);
+ 192:keyboards/crkbd/keymaps/thefrey/keymap.c ****       }
+ 193:keyboards/crkbd/keymaps/thefrey/keymap.c ****       return false;
+ 194:keyboards/crkbd/keymaps/thefrey/keymap.c ****       break;
+ 195:keyboards/crkbd/keymaps/thefrey/keymap.c ****     case LOWER:
+ 196:keyboards/crkbd/keymaps/thefrey/keymap.c ****       if (record->event.pressed) {
+ 197:keyboards/crkbd/keymaps/thefrey/keymap.c ****         layer_on(_LOWER);
+ 198:keyboards/crkbd/keymaps/thefrey/keymap.c ****         update_tri_layer_RGB(_LOWER, _RAISE, _ADJUST);
+ 199:keyboards/crkbd/keymaps/thefrey/keymap.c ****       } else {
+ 200:keyboards/crkbd/keymaps/thefrey/keymap.c ****         layer_off(_LOWER);
+ 201:keyboards/crkbd/keymaps/thefrey/keymap.c ****         update_tri_layer_RGB(_LOWER, _RAISE, _ADJUST);
+ 202:keyboards/crkbd/keymaps/thefrey/keymap.c ****       }
+ 203:keyboards/crkbd/keymaps/thefrey/keymap.c ****       return false;
+ 204:keyboards/crkbd/keymaps/thefrey/keymap.c ****       break;
+ 205:keyboards/crkbd/keymaps/thefrey/keymap.c ****     case RAISE:
+ 206:keyboards/crkbd/keymaps/thefrey/keymap.c ****       if (record->event.pressed) {
+ 207:keyboards/crkbd/keymaps/thefrey/keymap.c ****         layer_on(_RAISE);
+ 208:keyboards/crkbd/keymaps/thefrey/keymap.c ****         update_tri_layer_RGB(_LOWER, _RAISE, _ADJUST);
+ 209:keyboards/crkbd/keymaps/thefrey/keymap.c ****       } else {
+ 210:keyboards/crkbd/keymaps/thefrey/keymap.c ****         layer_off(_RAISE);
+ 211:keyboards/crkbd/keymaps/thefrey/keymap.c ****         update_tri_layer_RGB(_LOWER, _RAISE, _ADJUST);
+ 212:keyboards/crkbd/keymaps/thefrey/keymap.c ****       }
+ 213:keyboards/crkbd/keymaps/thefrey/keymap.c ****       return false;
+ 214:keyboards/crkbd/keymaps/thefrey/keymap.c ****       break;
+ 215:keyboards/crkbd/keymaps/thefrey/keymap.c ****     case ADJUST:
+ 216:keyboards/crkbd/keymaps/thefrey/keymap.c ****         if (record->event.pressed) {
+ 217:keyboards/crkbd/keymaps/thefrey/keymap.c ****           layer_on(_ADJUST);
+ 218:keyboards/crkbd/keymaps/thefrey/keymap.c ****         } else {
+ 219:keyboards/crkbd/keymaps/thefrey/keymap.c ****           layer_off(_ADJUST);
+ 220:keyboards/crkbd/keymaps/thefrey/keymap.c ****         }
+ 221:keyboards/crkbd/keymaps/thefrey/keymap.c ****         return false;
+ 222:keyboards/crkbd/keymaps/thefrey/keymap.c ****         break;
+ 223:keyboards/crkbd/keymaps/thefrey/keymap.c ****     case RGB_MOD:
+ 224:keyboards/crkbd/keymaps/thefrey/keymap.c ****       #ifdef RGBLIGHT_ENABLE
+ 225:keyboards/crkbd/keymaps/thefrey/keymap.c ****         if (record->event.pressed) {
+ 226:keyboards/crkbd/keymaps/thefrey/keymap.c ****           rgblight_mode(RGB_current_mode);
+ 227:keyboards/crkbd/keymaps/thefrey/keymap.c ****           rgblight_step();
+ 228:keyboards/crkbd/keymaps/thefrey/keymap.c ****           RGB_current_mode = rgblight_config.mode;
+ 229:keyboards/crkbd/keymaps/thefrey/keymap.c ****         }
+ 230:keyboards/crkbd/keymaps/thefrey/keymap.c ****       #endif
+ 231:keyboards/crkbd/keymaps/thefrey/keymap.c ****       return false;
+ 232:keyboards/crkbd/keymaps/thefrey/keymap.c ****       break;
+ 233:keyboards/crkbd/keymaps/thefrey/keymap.c ****     case RGBRST:
+ 234:keyboards/crkbd/keymaps/thefrey/keymap.c ****       #ifdef RGBLIGHT_ENABLE
+ 235:keyboards/crkbd/keymaps/thefrey/keymap.c ****         if (record->event.pressed) {
+ 236:keyboards/crkbd/keymaps/thefrey/keymap.c ****           eeconfig_update_rgblight_default();
+ 237:keyboards/crkbd/keymaps/thefrey/keymap.c ****           rgblight_enable();
+ 238:keyboards/crkbd/keymaps/thefrey/keymap.c ****           RGB_current_mode = rgblight_config.mode;
+ 239:keyboards/crkbd/keymaps/thefrey/keymap.c ****         }
+ 240:keyboards/crkbd/keymaps/thefrey/keymap.c ****       #endif
+ 241:keyboards/crkbd/keymaps/thefrey/keymap.c ****       break;
+ 242:keyboards/crkbd/keymaps/thefrey/keymap.c ****   }
+ 243:keyboards/crkbd/keymaps/thefrey/keymap.c ****   return true;
+ 394               		.loc 1 243 10 is_stmt 0 view .LVU62
+ 395 0032 C1E0      		ldi r28,lo8(1)
+ 396 0034 00C0      		rjmp .L19
+ 397               	.LVL36:
+ 398               	.L22:
+ 188:keyboards/crkbd/keymaps/thefrey/keymap.c ****     case QWERTY:
+ 399               		.loc 1 188 3 view .LVU63
+ 400 0036 0C32      		cpi r16,44
+ 401 0038 8DE5      		ldi r24,93
+ 402 003a 1807      		cpc r17,r24
+ 403 003c 01F0      		breq .L26
+ 404 003e 00F0      		brlo .L27
+ 405 0040 0E32      		cpi r16,46
+ 406 0042 1D45      		sbci r17,93
+ 407 0044 01F4      		brne .L32
+ 232:keyboards/crkbd/keymaps/thefrey/keymap.c ****     case RGBRST:
+ 408               		.loc 1 232 7 is_stmt 1 view .LVU64
+ 235:keyboards/crkbd/keymaps/thefrey/keymap.c ****           eeconfig_update_rgblight_default();
+ 409               		.loc 1 235 9 view .LVU65
+ 235:keyboards/crkbd/keymaps/thefrey/keymap.c ****           eeconfig_update_rgblight_default();
+ 410               		.loc 1 235 26 is_stmt 0 view .LVU66
+ 411 0046 CA81      		ldd r28,Y+2
+ 412               	.LVL37:
+ 235:keyboards/crkbd/keymaps/thefrey/keymap.c ****           eeconfig_update_rgblight_default();
+ 413               		.loc 1 235 12 view .LVU67
+ 414 0048 CC23      		tst r28
+ 415 004a 01F0      		breq .L32
+ 236:keyboards/crkbd/keymaps/thefrey/keymap.c ****           rgblight_enable();
+ 416               		.loc 1 236 11 is_stmt 1 view .LVU68
+ 417 004c 0E94 0000 		call eeconfig_update_rgblight_default
+ 418               	.LVL38:
+ 237:keyboards/crkbd/keymaps/thefrey/keymap.c ****           RGB_current_mode = rgblight_config.mode;
+ 419               		.loc 1 237 11 view .LVU69
+ 420 0050 0E94 0000 		call rgblight_enable
+ 421               	.LVL39:
+ 238:keyboards/crkbd/keymaps/thefrey/keymap.c ****         }
+ 422               		.loc 1 238 11 view .LVU70
+ 238:keyboards/crkbd/keymaps/thefrey/keymap.c ****         }
+ 423               		.loc 1 238 45 is_stmt 0 view .LVU71
+ 424 0054 8091 0000 		lds r24,rgblight_config
+ 425 0058 8695      		lsr r24
+ 426 005a 90E0      		ldi r25,0
+ 427 005c 9093 0000 		sts RGB_current_mode+1,r25
+ 428 0060 8093 0000 		sts RGB_current_mode,r24
+ 429 0064 00C0      		rjmp .L19
+ 430               	.LVL40:
+ 431               	.L24:
+ 190:keyboards/crkbd/keymaps/thefrey/keymap.c ****         set_single_persistent_default_layer(_QWERTY);
+ 432               		.loc 1 190 7 is_stmt 1 view .LVU72
+ 190:keyboards/crkbd/keymaps/thefrey/keymap.c ****         set_single_persistent_default_layer(_QWERTY);
+ 433               		.loc 1 190 24 is_stmt 0 view .LVU73
+ 434 0066 CA81      		ldd r28,Y+2
+ 435               	.LVL41:
+ 190:keyboards/crkbd/keymaps/thefrey/keymap.c ****         set_single_persistent_default_layer(_QWERTY);
+ 436               		.loc 1 190 10 view .LVU74
+ 437 0068 CC23      		tst r28
+ 438 006a 01F0      		breq .L19
+ 191:keyboards/crkbd/keymaps/thefrey/keymap.c ****       }
+ 439               		.loc 1 191 9 is_stmt 1 view .LVU75
+ 440 006c 80E0      		ldi r24,0
+ 441 006e 0E94 0000 		call set_single_persistent_default_layer
+ 442               	.LVL42:
+ 443               	.L42:
+ 231:keyboards/crkbd/keymaps/thefrey/keymap.c ****       break;
+ 444               		.loc 1 231 14 is_stmt 0 view .LVU76
+ 445 0072 C0E0      		ldi r28,0
+ 446 0074 00C0      		rjmp .L19
+ 447               	.LVL43:
+ 448               	.L21:
+ 194:keyboards/crkbd/keymaps/thefrey/keymap.c ****     case LOWER:
+ 449               		.loc 1 194 7 is_stmt 1 view .LVU77
+ 196:keyboards/crkbd/keymaps/thefrey/keymap.c ****         layer_on(_LOWER);
+ 450               		.loc 1 196 7 view .LVU78
+ 196:keyboards/crkbd/keymaps/thefrey/keymap.c ****         layer_on(_LOWER);
+ 451               		.loc 1 196 24 is_stmt 0 view .LVU79
+ 452 0076 CA81      		ldd r28,Y+2
+ 453               	.LVL44:
+ 197:keyboards/crkbd/keymaps/thefrey/keymap.c ****         update_tri_layer_RGB(_LOWER, _RAISE, _ADJUST);
+ 454               		.loc 1 197 9 view .LVU80
+ 455 0078 81E0      		ldi r24,lo8(1)
+ 456               	.L45:
+ 206:keyboards/crkbd/keymaps/thefrey/keymap.c ****         layer_on(_RAISE);
+ 457               		.loc 1 206 10 view .LVU81
+ 458 007a CC23      		tst r28
+ 459 007c 01F0      		breq .L30
+ 207:keyboards/crkbd/keymaps/thefrey/keymap.c ****         update_tri_layer_RGB(_LOWER, _RAISE, _ADJUST);
+ 460               		.loc 1 207 9 is_stmt 1 view .LVU82
+ 461 007e 0E94 0000 		call layer_on
+ 462               	.LVL45:
+ 208:keyboards/crkbd/keymaps/thefrey/keymap.c ****       } else {
+ 463               		.loc 1 208 9 view .LVU83
+ 464 0082 43E0      		ldi r20,lo8(3)
+ 465 0084 62E0      		ldi r22,lo8(2)
+ 466 0086 81E0      		ldi r24,lo8(1)
+ 467 0088 0E94 0000 		call update_tri_layer_RGB
+ 468               	.LVL46:
+ 469 008c 00C0      		rjmp .L42
+ 470               	.LVL47:
+ 471               	.L27:
+ 204:keyboards/crkbd/keymaps/thefrey/keymap.c ****     case RAISE:
+ 472               		.loc 1 204 7 view .LVU84
+ 206:keyboards/crkbd/keymaps/thefrey/keymap.c ****         layer_on(_RAISE);
+ 473               		.loc 1 206 7 view .LVU85
+ 206:keyboards/crkbd/keymaps/thefrey/keymap.c ****         layer_on(_RAISE);
+ 474               		.loc 1 206 24 is_stmt 0 view .LVU86
+ 475 008e CA81      		ldd r28,Y+2
+ 476               	.LVL48:
+ 207:keyboards/crkbd/keymaps/thefrey/keymap.c ****         update_tri_layer_RGB(_LOWER, _RAISE, _ADJUST);
+ 477               		.loc 1 207 9 view .LVU87
+ 478 0090 82E0      		ldi r24,lo8(2)
+ 479 0092 00C0      		rjmp .L45
+ 480               	.L30:
+ 210:keyboards/crkbd/keymaps/thefrey/keymap.c ****         update_tri_layer_RGB(_LOWER, _RAISE, _ADJUST);
+ 481               		.loc 1 210 9 is_stmt 1 view .LVU88
+ 482 0094 0E94 0000 		call layer_off
+ 483               	.LVL49:
+ 211:keyboards/crkbd/keymaps/thefrey/keymap.c ****       }
+ 484               		.loc 1 211 9 view .LVU89
+ 485 0098 43E0      		ldi r20,lo8(3)
+ 486 009a 62E0      		ldi r22,lo8(2)
+ 487 009c 81E0      		ldi r24,lo8(1)
+ 488 009e 0E94 0000 		call update_tri_layer_RGB
+ 489               	.LVL50:
+ 490               	.L19:
+ 244:keyboards/crkbd/keymaps/thefrey/keymap.c **** }
+ 491               		.loc 1 244 1 is_stmt 0 view .LVU90
+ 492 00a2 8C2F      		mov r24,r28
+ 493               	/* epilogue start */
+ 494 00a4 DF91      		pop r29
+ 495 00a6 CF91      		pop r28
+ 496 00a8 1F91      		pop r17
+ 497 00aa 0F91      		pop r16
+ 498               	.LVL51:
+ 499               		.loc 1 244 1 view .LVU91
+ 500 00ac 0895      		ret
+ 501               	.LVL52:
+ 502               	.L26:
+ 214:keyboards/crkbd/keymaps/thefrey/keymap.c ****     case ADJUST:
+ 503               		.loc 1 214 7 is_stmt 1 view .LVU92
+ 216:keyboards/crkbd/keymaps/thefrey/keymap.c ****           layer_on(_ADJUST);
+ 504               		.loc 1 216 9 view .LVU93
+ 216:keyboards/crkbd/keymaps/thefrey/keymap.c ****           layer_on(_ADJUST);
+ 505               		.loc 1 216 26 is_stmt 0 view .LVU94
+ 506 00ae CA81      		ldd r28,Y+2
+ 507               	.LVL53:
+ 217:keyboards/crkbd/keymaps/thefrey/keymap.c ****         } else {
+ 508               		.loc 1 217 11 view .LVU95
+ 509 00b0 83E0      		ldi r24,lo8(3)
+ 216:keyboards/crkbd/keymaps/thefrey/keymap.c ****           layer_on(_ADJUST);
+ 510               		.loc 1 216 12 view .LVU96
+ 511 00b2 CC23      		tst r28
+ 512 00b4 01F0      		breq .L31
+ 217:keyboards/crkbd/keymaps/thefrey/keymap.c ****         } else {
+ 513               		.loc 1 217 11 is_stmt 1 view .LVU97
+ 514 00b6 0E94 0000 		call layer_on
+ 515               	.LVL54:
+ 516 00ba 00C0      		rjmp .L42
+ 517               	.L31:
+ 219:keyboards/crkbd/keymaps/thefrey/keymap.c ****         }
+ 518               		.loc 1 219 11 view .LVU98
+ 519 00bc 0E94 0000 		call layer_off
+ 520               	.LVL55:
+ 521 00c0 00C0      		rjmp .L19
+ 522               	.LVL56:
+ 523               	.L23:
+ 222:keyboards/crkbd/keymaps/thefrey/keymap.c ****     case RGB_MOD:
+ 524               		.loc 1 222 9 view .LVU99
+ 225:keyboards/crkbd/keymaps/thefrey/keymap.c ****           rgblight_mode(RGB_current_mode);
+ 525               		.loc 1 225 9 view .LVU100
+ 225:keyboards/crkbd/keymaps/thefrey/keymap.c ****           rgblight_mode(RGB_current_mode);
+ 526               		.loc 1 225 26 is_stmt 0 view .LVU101
+ 527 00c2 CA81      		ldd r28,Y+2
+ 528               	.LVL57:
+ 225:keyboards/crkbd/keymaps/thefrey/keymap.c ****           rgblight_mode(RGB_current_mode);
+ 529               		.loc 1 225 12 view .LVU102
+ 530 00c4 CC23      		tst r28
+ 531 00c6 01F0      		breq .L19
+ 226:keyboards/crkbd/keymaps/thefrey/keymap.c ****           rgblight_step();
+ 532               		.loc 1 226 11 is_stmt 1 view .LVU103
+ 533 00c8 8091 0000 		lds r24,RGB_current_mode
+ 534 00cc 0E94 0000 		call rgblight_mode
+ 535               	.LVL58:
+ 227:keyboards/crkbd/keymaps/thefrey/keymap.c ****           RGB_current_mode = rgblight_config.mode;
+ 536               		.loc 1 227 11 view .LVU104
+ 537 00d0 0E94 0000 		call rgblight_step
+ 538               	.LVL59:
+ 228:keyboards/crkbd/keymaps/thefrey/keymap.c ****         }
+ 539               		.loc 1 228 11 view .LVU105
+ 228:keyboards/crkbd/keymaps/thefrey/keymap.c ****         }
+ 540               		.loc 1 228 45 is_stmt 0 view .LVU106
+ 541 00d4 8091 0000 		lds r24,rgblight_config
+ 542 00d8 8695      		lsr r24
+ 543 00da 90E0      		ldi r25,0
+ 544 00dc 9093 0000 		sts RGB_current_mode+1,r25
+ 545 00e0 8093 0000 		sts RGB_current_mode,r24
+ 546 00e4 00C0      		rjmp .L42
+ 547               		.cfi_endproc
+ 548               	.LFE128:
+ 550               		.comm	RGB_current_mode,2,1
+ 551               	.global	keymaps
+ 552               		.section	.progmem.data.keymaps,"a"
+ 555               	keymaps:
+ 556 0000 2B00      		.word	43
+ 557 0002 1400      		.word	20
+ 558 0004 1A00      		.word	26
+ 559 0006 0800      		.word	8
+ 560 0008 1500      		.word	21
+ 561 000a 1700      		.word	23
+ 562 000c 2B61      		.word	24875
+ 563 000e 0400      		.word	4
+ 564 0010 1600      		.word	22
+ 565 0012 0700      		.word	7
+ 566 0014 0900      		.word	9
+ 567 0016 0A00      		.word	10
+ 568 0018 E100      		.word	225
+ 569 001a 1D00      		.word	29
+ 570 001c 1B00      		.word	27
+ 571 001e 0600      		.word	6
+ 572 0020 1900      		.word	25
+ 573 0022 0500      		.word	5
+ 574 0024 0000      		.word	0
+ 575 0026 0000      		.word	0
+ 576 0028 0000      		.word	0
+ 577 002a 9168      		.word	26769
+ 578 002c 2A5D      		.word	23850
+ 579 002e 2C00      		.word	44
+ 580 0030 2A00      		.word	42
+ 581 0032 1300      		.word	19
+ 582 0034 1200      		.word	18
+ 583 0036 0C00      		.word	12
+ 584 0038 1800      		.word	24
+ 585 003a 1C00      		.word	28
+ 586 003c 3400      		.word	52
+ 587 003e 3300      		.word	51
+ 588 0040 0F00      		.word	15
+ 589 0042 0E00      		.word	14
+ 590 0044 0D00      		.word	13
+ 591 0046 0B00      		.word	11
+ 592 0048 E500      		.word	229
+ 593 004a 3800      		.word	56
+ 594 004c 3700      		.word	55
+ 595 004e 3600      		.word	54
+ 596 0050 1000      		.word	16
+ 597 0052 1100      		.word	17
+ 598 0054 0000      		.word	0
+ 599 0056 0000      		.word	0
+ 600 0058 0000      		.word	0
+ 601 005a 9064      		.word	25744
+ 602 005c 2B5D      		.word	23851
+ 603 005e 2800      		.word	40
+ 604 0060 2900      		.word	41
+ 605 0062 1E00      		.word	30
+ 606 0064 1F00      		.word	31
+ 607 0066 2000      		.word	32
+ 608 0068 2100      		.word	33
+ 609 006a 2200      		.word	34
+ 610 006c 2B61      		.word	24875
+ 611 006e A800      		.word	168
+ 612 0070 AA00      		.word	170
+ 613 0072 A900      		.word	169
+ 614 0074 4B00      		.word	75
+ 615 0076 4E00      		.word	78
+ 616 0078 E100      		.word	225
+ 617 007a 3A00      		.word	58
+ 618 007c 3B00      		.word	59
+ 619 007e 3C00      		.word	60
+ 620 0080 3D00      		.word	61
+ 621 0082 3E00      		.word	62
+ 622 0084 0000      		.word	0
+ 623 0086 0000      		.word	0
+ 624 0088 0000      		.word	0
+ 625 008a 9168      		.word	26769
+ 626 008c 2A5D      		.word	23850
+ 627 008e 2C00      		.word	44
+ 628 0090 2A00      		.word	42
+ 629 0092 2700      		.word	39
+ 630 0094 2600      		.word	38
+ 631 0096 2500      		.word	37
+ 632 0098 2400      		.word	36
+ 633 009a 2300      		.word	35
+ 634 009c 4D00      		.word	77
+ 635 009e 4A00      		.word	74
+ 636 00a0 4F00      		.word	79
+ 637 00a2 5200      		.word	82
+ 638 00a4 5100      		.word	81
+ 639 00a6 5000      		.word	80
+ 640 00a8 0000      		.word	0
+ 641 00aa 4300      		.word	67
+ 642 00ac 4200      		.word	66
+ 643 00ae 4100      		.word	65
+ 644 00b0 4E00      		.word	78
+ 645 00b2 4B00      		.word	75
+ 646 00b4 0000      		.word	0
+ 647 00b6 0000      		.word	0
+ 648 00b8 0000      		.word	0
+ 649 00ba 9064      		.word	25744
+ 650 00bc 2B5D      		.word	23851
+ 651 00be 2800      		.word	40
+ 652 00c0 2900      		.word	41
+ 653 00c2 1E02      		.word	542
+ 654 00c4 1F02      		.word	543
+ 655 00c6 2002      		.word	544
+ 656 00c8 2102      		.word	545
+ 657 00ca 2202      		.word	546
+ 658 00cc 2B61      		.word	24875
+ 659 00ce 2E00      		.word	46
+ 660 00d0 2D00      		.word	45
+ 661 00d2 3002      		.word	560
+ 662 00d4 3102      		.word	561
+ 663 00d6 3000      		.word	48
+ 664 00d8 E100      		.word	225
+ 665 00da 0000      		.word	0
+ 666 00dc 0000      		.word	0
+ 667 00de 0000      		.word	0
+ 668 00e0 2E00      		.word	46
+ 669 00e2 2D00      		.word	45
+ 670 00e4 0000      		.word	0
+ 671 00e6 0000      		.word	0
+ 672 00e8 0000      		.word	0
+ 673 00ea 9168      		.word	26769
+ 674 00ec 2A5D      		.word	23850
+ 675 00ee 2C00      		.word	44
+ 676 00f0 4C00      		.word	76
+ 677 00f2 2702      		.word	551
+ 678 00f4 2602      		.word	550
+ 679 00f6 2502      		.word	549
+ 680 00f8 2402      		.word	548
+ 681 00fa 2302      		.word	547
+ 682 00fc 4D00      		.word	77
+ 683 00fe 4A00      		.word	74
+ 684 0100 4F00      		.word	79
+ 685 0102 5200      		.word	82
+ 686 0104 5100      		.word	81
+ 687 0106 5000      		.word	80
+ 688 0108 3502      		.word	565
+ 689 010a 3100      		.word	49
+ 690 010c 3000      		.word	48
+ 691 010e 2F00      		.word	47
+ 692 0110 2E02      		.word	558
+ 693 0112 2D02      		.word	557
+ 694 0114 0000      		.word	0
+ 695 0116 0000      		.word	0
+ 696 0118 0000      		.word	0
+ 697 011a 9064      		.word	25744
+ 698 011c 2B5D      		.word	23851
+ 699 011e 2800      		.word	40
+ 700 0120 005C      		.word	23552
+ 701 0122 2E5D      		.word	23854
+ 702 0124 0000      		.word	0
+ 703 0126 0000      		.word	0
+ 704 0128 0000      		.word	0
+ 705 012a 0000      		.word	0
+ 706 012c C35C      		.word	23747
+ 707 012e C65C      		.word	23750
+ 708 0130 C85C      		.word	23752
+ 709 0132 CA5C      		.word	23754
+ 710 0134 0000      		.word	0
+ 711 0136 0000      		.word	0
+ 712 0138 C45C      		.word	23748
+ 713 013a C75C      		.word	23751
+ 714 013c C95C      		.word	23753
+ 715 013e CB5C      		.word	23755
+ 716 0140 0000      		.word	0
+ 717 0142 0000      		.word	0
+ 718 0144 0000      		.word	0
+ 719 0146 0000      		.word	0
+ 720 0148 0000      		.word	0
+ 721 014a 9168      		.word	26769
+ 722 014c 2A5D      		.word	23850
+ 723 014e 2C00      		.word	44
+ 724 0150 0000      		.word	0
+ 725 0152 0000      		.word	0
+ 726 0154 0000      		.word	0
+ 727 0156 0000      		.word	0
+ 728 0158 0000      		.word	0
+ 729 015a 0000      		.word	0
+ 730 015c 0000      		.word	0
+ 731 015e 0000      		.word	0
+ 732 0160 0000      		.word	0
+ 733 0162 0000      		.word	0
+ 734 0164 0000      		.word	0
+ 735 0166 0000      		.word	0
+ 736 0168 0000      		.word	0
+ 737 016a 0000      		.word	0
+ 738 016c 0000      		.word	0
+ 739 016e 0000      		.word	0
+ 740 0170 0000      		.word	0
+ 741 0172 0000      		.word	0
+ 742 0174 0000      		.word	0
+ 743 0176 0000      		.word	0
+ 744 0178 0000      		.word	0
+ 745 017a 9064      		.word	25744
+ 746 017c 2B5D      		.word	23851
+ 747 017e 2800      		.word	40
+ 748               		.text
+ 749               	.Letext0:
+ 750               		.file 2 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdint.h"
+ 751               		.file 3 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/lib/avr-gcc/8/gcc/avr/8.4.0/include/stddef.h"
+ 752               		.file 4 "tmk_core/common/keyboard.h"
+ 753               		.file 5 "tmk_core/common/keycode.h"
+ 754               		.file 6 "tmk_core/common/action_code.h"
+ 755               		.file 7 "tmk_core/common/action.h"
+ 756               		.file 8 "keyboards/crkbd/rev1/legacy/legacy.h"
+ 757               		.file 9 "tmk_core/common/report.h"
+ 758               		.file 10 "tmk_core/common/host_driver.h"
+ 759               		.file 11 "tmk_core/common/host.h"
+ 760               		.file 12 "tmk_core/common/debug.h"
+ 761               		.file 13 "quantum/keycode_config.h"
+ 762               		.file 14 "quantum/quantum_keycodes.h"
+ 763               		.file 15 "quantum/keymap.h"
+ 764               		.file 16 "./quantum/color.h"
+ 765               		.file 17 "quantum/rgblight.h"
+ 766               		.file 18 "tmk_core/common/action_layer.h"
+ 767               		.file 19 "tmk_core/common/timer.h"
+ 768               		.file 20 "tmk_core/common/action_util.h"
+ 769               		.file 21 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdlib.h"
+ 770               		.file 22 "quantum/quantum.h"
+ 771               		.file 23 "keyboards/crkbd/rev1/legacy/split_util.h"
+ 772               		.file 24 "lib/lufa/LUFA/Drivers/USB/Core/AVR8/../StdRequestType.h"
+ 773               		.file 25 "lib/lufa/LUFA/Drivers/USB/Core/AVR8/../DeviceStandardReq.h"
+ 774               		.file 26 "lib/lufa/LUFA/Drivers/USB/Core/USBTask.h"
+ 775               		.file 27 "lib/lufa/LUFA/Drivers/USB/Core/HostStandardReq.h"
+ 776               		.file 28 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdio.h"
+ 777               		.file 29 "tmk_core/protocol/lufa/lufa.h"
+ 778               		.file 30 "keyboards/crkbd/rev1/legacy/ssd1306.h"
+ 779               		.file 31 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/string.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 keymap.c
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:13     .text.update_tri_layer_RGB:0000000000000000 update_tri_layer_RGB
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:17     .text.update_tri_layer_RGB:0000000000000000 .Loc.0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:18     .text.update_tri_layer_RGB:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:19     .text.update_tri_layer_RGB:0000000000000000 .Loc.1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:34     .text.update_tri_layer_RGB:0000000000000008 .Loc.2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:35     .text.update_tri_layer_RGB:0000000000000008 .Loc.3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:38     .text.update_tri_layer_RGB:000000000000000c .Loc.4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:41     .text.update_tri_layer_RGB:0000000000000010 .Loc.5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:45     .text.update_tri_layer_RGB:0000000000000016 .Loc.6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:48     .text.update_tri_layer_RGB:000000000000001a .Loc.7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:51     .text.update_tri_layer_RGB:000000000000001c .Loc.8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:54     .text.update_tri_layer_RGB:000000000000001e .Loc.9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:57     .text.update_tri_layer_RGB:0000000000000020 .Loc.10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:61     .text.update_tri_layer_RGB:0000000000000024 .Loc.11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:64     .text.update_tri_layer_RGB:0000000000000026 .Loc.12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:67     .text.update_tri_layer_RGB:0000000000000028 .Loc.13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:70     .text.update_tri_layer_RGB:000000000000002a .Loc.14
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:73     .text.update_tri_layer_RGB:000000000000002e .Loc.15
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:74     .text.update_tri_layer_RGB:000000000000002e L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:80     .text.matrix_init_user:0000000000000000 matrix_init_user
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:82     .text.matrix_init_user:0000000000000000 .Loc.16
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:83     .text.matrix_init_user:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:88     .text.matrix_init_user:0000000000000000 .Loc.17
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:89     .text.matrix_init_user:0000000000000000 .Loc.18
+                            *COM*:0000000000000002 RGB_current_mode
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:95     .text.matrix_init_user:0000000000000010 .Loc.19
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:96     .text.matrix_init_user:0000000000000010 .Loc.20
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:99     .text.matrix_init_user:0000000000000014 .Loc.21
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:104    .text.matrix_init_user:000000000000001c L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:110    .text.matrix_scan_user:0000000000000000 matrix_scan_user
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:112    .text.matrix_scan_user:0000000000000000 .Loc.22
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:113    .text.matrix_scan_user:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:118    .text.matrix_scan_user:0000000000000000 .Loc.23
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:121    .text.matrix_scan_user:0000000000000004 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:127    .text.matrix_render_user:0000000000000000 matrix_render_user
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:130    .text.matrix_render_user:0000000000000000 .Loc.24
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:131    .text.matrix_render_user:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:132    .text.matrix_render_user:0000000000000000 .Loc.25
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:146    .text.matrix_render_user:0000000000000006 .Loc.26
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:147    .text.matrix_render_user:0000000000000006 .Loc.27
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:150    .text.matrix_render_user:000000000000000a .Loc.28
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:153    .text.matrix_render_user:000000000000000e .Loc.29
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:160    .text.matrix_render_user:000000000000001a .Loc.30
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:167    .text.matrix_render_user:0000000000000026 .Loc.31
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:173    .text.matrix_render_user:000000000000002e .Loc.32
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:177    .text.matrix_render_user:0000000000000032 .Loc.33
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:181    .text.matrix_render_user:0000000000000036 .Loc.34
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:187    .text.matrix_render_user:000000000000003e .Loc.35
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:191    .text.matrix_render_user:0000000000000042 .Loc.36
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:194    .text.matrix_render_user:0000000000000046 .Loc.37
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:195    .text.matrix_render_user:0000000000000046 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:201    .text.matrix_update:0000000000000000 matrix_update
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:204    .text.matrix_update:0000000000000000 .Loc.38
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:205    .text.matrix_update:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:206    .text.matrix_update:0000000000000000 .Loc.39
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:229    .text.matrix_update:000000000000000c .Loc.40
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:230    .text.matrix_update:000000000000000c .Loc.41
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:235    .text.matrix_update:0000000000000014 .Loc.42
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:238    .text.matrix_update:0000000000000018 .Loc.43
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:247    .text.matrix_update:0000000000000026 .Loc.44
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:248    .text.matrix_update:0000000000000026 .Loc.45
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:252    .text.matrix_update:000000000000002a .Loc.46
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:258    .text.matrix_update:000000000000002e .Loc.47
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:264    .text.matrix_update:0000000000000036 .Loc.48
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:266    .text.matrix_update:0000000000000038 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:272    .text.iota_gfx_task_user:0000000000000000 iota_gfx_task_user
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:274    .text.iota_gfx_task_user:0000000000000000 .Loc.49
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:275    .text.iota_gfx_task_user:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:301    .text.iota_gfx_task_user:0000000000000016 .Loc.50
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:302    .text.iota_gfx_task_user:0000000000000016 .Loc.51
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:307    .text.iota_gfx_task_user:000000000000001e .Loc.52
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:312    .text.iota_gfx_task_user:0000000000000026 .Loc.53
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:321    .text.iota_gfx_task_user:0000000000000034 .Loc.54
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:332    .text.iota_gfx_task_user:0000000000000048 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:338    .text.process_record_user:0000000000000000 process_record_user
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:341    .text.process_record_user:0000000000000000 .Loc.55
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:342    .text.process_record_user:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:343    .text.process_record_user:0000000000000000 .Loc.56
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:366    .text.process_record_user:000000000000000c .Loc.57
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:367    .text.process_record_user:000000000000000c .Loc.58
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:370    .text.process_record_user:000000000000000e .Loc.59
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:373    .text.process_record_user:0000000000000012 .Loc.60
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:378    .text.process_record_user:0000000000000018 .Loc.61
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:387    .text.process_record_user:000000000000002a L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:394    .text.process_record_user:0000000000000032 .Loc.62
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:399    .text.process_record_user:0000000000000036 .Loc.63
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:408    .text.process_record_user:0000000000000046 .Loc.64
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:409    .text.process_record_user:0000000000000046 .Loc.65
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:410    .text.process_record_user:0000000000000046 .Loc.66
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:413    .text.process_record_user:0000000000000048 .Loc.67
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:416    .text.process_record_user:000000000000004c .Loc.68
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:419    .text.process_record_user:0000000000000050 .Loc.69
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:422    .text.process_record_user:0000000000000054 .Loc.70
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:423    .text.process_record_user:0000000000000054 .Loc.71
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:432    .text.process_record_user:0000000000000066 .Loc.72
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:433    .text.process_record_user:0000000000000066 .Loc.73
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:436    .text.process_record_user:0000000000000068 .Loc.74
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:439    .text.process_record_user:000000000000006c .Loc.75
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:444    .text.process_record_user:0000000000000072 .Loc.76
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:449    .text.process_record_user:0000000000000076 .Loc.77
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:450    .text.process_record_user:0000000000000076 .Loc.78
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:451    .text.process_record_user:0000000000000076 .Loc.79
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:454    .text.process_record_user:0000000000000078 .Loc.80
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:457    .text.process_record_user:000000000000007a .Loc.81
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:460    .text.process_record_user:000000000000007e .Loc.82
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:463    .text.process_record_user:0000000000000082 .Loc.83
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:472    .text.process_record_user:000000000000008e .Loc.84
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:473    .text.process_record_user:000000000000008e .Loc.85
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:474    .text.process_record_user:000000000000008e .Loc.86
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:477    .text.process_record_user:0000000000000090 .Loc.87
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:481    .text.process_record_user:0000000000000094 .Loc.88
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:484    .text.process_record_user:0000000000000098 .Loc.89
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:491    .text.process_record_user:00000000000000a2 .Loc.90
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:499    .text.process_record_user:00000000000000ac .Loc.91
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:503    .text.process_record_user:00000000000000ae .Loc.92
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:504    .text.process_record_user:00000000000000ae .Loc.93
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:505    .text.process_record_user:00000000000000ae .Loc.94
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:508    .text.process_record_user:00000000000000b0 .Loc.95
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:510    .text.process_record_user:00000000000000b2 .Loc.96
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:513    .text.process_record_user:00000000000000b6 .Loc.97
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:518    .text.process_record_user:00000000000000bc .Loc.98
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:524    .text.process_record_user:00000000000000c2 .Loc.99
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:525    .text.process_record_user:00000000000000c2 .Loc.100
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:526    .text.process_record_user:00000000000000c2 .Loc.101
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:529    .text.process_record_user:00000000000000c4 .Loc.102
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:532    .text.process_record_user:00000000000000c8 .Loc.103
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:536    .text.process_record_user:00000000000000d0 .Loc.104
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:539    .text.process_record_user:00000000000000d4 .Loc.105
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:540    .text.process_record_user:00000000000000d4 .Loc.106
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:547    .text.process_record_user:00000000000000e6 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:555    .progmem.data.keymaps:0000000000000000 keymaps
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:77     .text.update_tri_layer_RGB:000000000000002e L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:107    .text.matrix_init_user:000000000000001c L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:124    .text.matrix_scan_user:0000000000000004 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:198    .text.matrix_render_user:0000000000000046 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:269    .text.matrix_update:0000000000000038 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:335    .text.iota_gfx_task_user:0000000000000048 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:552    .text.process_record_user:00000000000000e6 L0
+                     .debug_frame:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:60     .text.update_tri_layer_RGB:0000000000000024 .L2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:180    .text.matrix_render_user:0000000000000036 .L12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:256    .text.matrix_update:000000000000002e .L13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:242    .text.matrix_update:000000000000001e .L1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:377    .text.process_record_user:0000000000000018 .L20
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:448    .text.process_record_user:0000000000000076 .L21
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:398    .text.process_record_user:0000000000000036 .L22
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:523    .text.process_record_user:00000000000000c2 .L23
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:431    .text.process_record_user:0000000000000066 .L24
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:490    .text.process_record_user:00000000000000a2 .L19
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:502    .text.process_record_user:00000000000000ae .L26
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:471    .text.process_record_user:000000000000008e .L27
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:393    .text.process_record_user:0000000000000032 .L32
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:480    .text.process_record_user:0000000000000094 .L30
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:443    .text.process_record_user:0000000000000072 .L42
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:456    .text.process_record_user:000000000000007a .L45
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:517    .text.process_record_user:00000000000000bc .L31
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:5033   .debug_abbrev:0000000000000000 .Ldebug_abbrev0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6480   .debug_ranges:0000000000000000 .Ldebug_ranges0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6498   .debug_line:0000000000000000 .Ldebug_line0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:340    .text.process_record_user:0000000000000000 .LFB128
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:548    .text.process_record_user:00000000000000e6 .LFE128
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:5849   .debug_loc:0000000000000000 .LLST10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:5891   .debug_loc:0000000000000051 .LLST11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:5882   .debug_loc:0000000000000049 .LVUS11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:5959   .debug_loc:00000000000000b5 .LLST12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:5928   .debug_loc:0000000000000097 .LVUS12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:376    .text.process_record_user:0000000000000018 .LVL34
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:418    .text.process_record_user:0000000000000050 .LVL38
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:421    .text.process_record_user:0000000000000054 .LVL39
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:442    .text.process_record_user:0000000000000072 .LVL42
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:462    .text.process_record_user:0000000000000082 .LVL45
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:468    .text.process_record_user:000000000000008c .LVL46
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:483    .text.process_record_user:0000000000000098 .LVL49
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:489    .text.process_record_user:00000000000000a2 .LVL50
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:515    .text.process_record_user:00000000000000ba .LVL54
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:520    .text.process_record_user:00000000000000c0 .LVL55
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:535    .text.process_record_user:00000000000000d0 .LVL58
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:538    .text.process_record_user:00000000000000d4 .LVL59
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:273    .text.iota_gfx_task_user:0000000000000000 .LFB127
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:333    .text.iota_gfx_task_user:0000000000000048 .LFE127
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6083   .debug_loc:000000000000019f .LLST9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:306    .text.iota_gfx_task_user:000000000000001e .LVL29
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:311    .text.iota_gfx_task_user:0000000000000026 .LVL30
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:319    .text.iota_gfx_task_user:0000000000000034 .LVL31
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:203    .text.matrix_update:0000000000000000 .LFB126
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:267    .text.matrix_update:0000000000000038 .LFE126
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6114   .debug_loc:00000000000001e7 .LLST6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6156   .debug_loc:0000000000000238 .LLST7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6147   .debug_loc:0000000000000230 .LVUS7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6197   .debug_loc:0000000000000282 .LLST8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6190   .debug_loc:000000000000027c .LVUS8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:234    .text.matrix_update:0000000000000014 .LVL25
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:129    .text.matrix_render_user:0000000000000000 .LFB125
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:196    .text.matrix_render_user:0000000000000046 .LFE125
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6225   .debug_loc:00000000000002b8 .LLST4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6261   .debug_loc:00000000000002f5 .LLST5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6246   .debug_loc:00000000000002e7 .LVUS5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:155    .text.matrix_render_user:0000000000000012 .LVL14
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:159    .text.matrix_render_user:000000000000001a .LVL15
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:162    .text.matrix_render_user:000000000000001e .LVL16
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:166    .text.matrix_render_user:0000000000000026 .LVL17
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:169    .text.matrix_render_user:000000000000002a .LVL18
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:179    .text.matrix_render_user:0000000000000036 .LVL20
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:183    .text.matrix_render_user:000000000000003a .LVL21
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:193    .text.matrix_render_user:0000000000000046 .LVL23
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:111    .text.matrix_scan_user:0000000000000000 .LFB124
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:122    .text.matrix_scan_user:0000000000000004 .LFE124
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:120    .text.matrix_scan_user:0000000000000004 .LVL11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:81     .text.matrix_init_user:0000000000000000 .LFB123
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:105    .text.matrix_init_user:000000000000001c .LFE123
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:98     .text.matrix_init_user:0000000000000014 .LVL9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:103    .text.matrix_init_user:000000000000001c .LVL10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:15     .text.update_tri_layer_RGB:0000000000000000 .LFB122
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:75     .text.update_tri_layer_RGB:000000000000002e .LFE122
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6323   .debug_loc:0000000000000369 .LLST0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6349   .debug_loc:000000000000039c .LLST1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6344   .debug_loc:0000000000000398 .LVUS1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6374   .debug_loc:00000000000003c7 .LLST2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6363   .debug_loc:00000000000003bd .LVUS2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6418   .debug_loc:000000000000041a .LLST3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:6403   .debug_loc:000000000000040c .LVUS3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:37     .text.update_tri_layer_RGB:000000000000000c .LVL1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:44     .text.update_tri_layer_RGB:0000000000000016 .LVL2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:59     .text.update_tri_layer_RGB:0000000000000024 .LVL5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:72     .text.update_tri_layer_RGB:000000000000002e .LVL8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:345    .text.process_record_user:0000000000000002 .LCFI12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:349    .text.process_record_user:0000000000000004 .LCFI13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:353    .text.process_record_user:0000000000000006 .LCFI14
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:357    .text.process_record_user:0000000000000008 .LCFI15
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:339    .text.process_record_user:0000000000000000 .LVL32
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:369    .text.process_record_user:000000000000000e .LVL33
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:498    .text.process_record_user:00000000000000ac .LVL51
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:501    .text.process_record_user:00000000000000ae .LVL52
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:392    .text.process_record_user:0000000000000032 .LVL35
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:397    .text.process_record_user:0000000000000036 .LVL36
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:412    .text.process_record_user:0000000000000048 .LVL37
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:430    .text.process_record_user:0000000000000066 .LVL40
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:435    .text.process_record_user:0000000000000068 .LVL41
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:447    .text.process_record_user:0000000000000076 .LVL43
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:453    .text.process_record_user:0000000000000078 .LVL44
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:470    .text.process_record_user:000000000000008e .LVL47
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:476    .text.process_record_user:0000000000000090 .LVL48
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:507    .text.process_record_user:00000000000000b0 .LVL53
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:522    .text.process_record_user:00000000000000c2 .LVL56
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:528    .text.process_record_user:00000000000000c4 .LVL57
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:277    .text.iota_gfx_task_user:0000000000000002 .LCFI8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:281    .text.iota_gfx_task_user:0000000000000004 .LCFI9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:286    .text.iota_gfx_task_user:0000000000000008 .LCFI10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:290    .text.iota_gfx_task_user:000000000000000c .LCFI11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:208    .text.matrix_update:0000000000000002 .LCFI4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:212    .text.matrix_update:0000000000000004 .LCFI5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:216    .text.matrix_update:0000000000000006 .LCFI6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:220    .text.matrix_update:0000000000000008 .LCFI7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:202    .text.matrix_update:0000000000000000 .LVL24
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:251    .text.matrix_update:000000000000002a .LVL26
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:255    .text.matrix_update:000000000000002e .LVL27
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:263    .text.matrix_update:0000000000000036 .LVL28
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:134    .text.matrix_render_user:0000000000000002 .LCFI2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:138    .text.matrix_render_user:0000000000000004 .LCFI3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:128    .text.matrix_render_user:0000000000000000 .LVL12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:149    .text.matrix_render_user:000000000000000a .LVL13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:176    .text.matrix_render_user:0000000000000032 .LVL19
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:190    .text.matrix_render_user:0000000000000042 .LVL22
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:21     .text.update_tri_layer_RGB:0000000000000002 .LCFI0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:25     .text.update_tri_layer_RGB:0000000000000004 .LCFI1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:14     .text.update_tri_layer_RGB:0000000000000000 .LVL0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:53     .text.update_tri_layer_RGB:000000000000001e .LVL3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:66     .text.update_tri_layer_RGB:0000000000000028 .LVL6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:56     .text.update_tri_layer_RGB:0000000000000020 .LVL4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:69     .text.update_tri_layer_RGB:000000000000002a .LVL7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccJU3k2d.s:781    .debug_info:0000000000000000 .Ldebug_info0
+
+UNDEFINED SYMBOLS
+layer_state_is
+layer_on
+layer_off
+rgblight_config
+has_usb
+iota_gfx_init
+iota_gfx_task
+is_master
+read_layer_state
+matrix_write_ln
+read_keylog
+read_keylogs
+read_logo
+matrix_write
+memcmp
+matrix_clear
+display
+set_keylog
+eeconfig_update_rgblight_default
+rgblight_enable
+set_single_persistent_default_layer
+rgblight_mode
+rgblight_step
+__do_clear_bss

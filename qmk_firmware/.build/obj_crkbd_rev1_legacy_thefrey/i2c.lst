@@ -1,0 +1,944 @@
+   1               		.file	"i2c.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               		.section	.text.i2c_delay,"ax",@progbits
+  12               	i2c_delay:
+  13               	.LFB6:
+  14               		.file 1 "keyboards/crkbd/rev1/legacy/i2c.c"
+   1:keyboards/crkbd/rev1/legacy/i2c.c **** #include <util/twi.h>
+   2:keyboards/crkbd/rev1/legacy/i2c.c **** #include <avr/io.h>
+   3:keyboards/crkbd/rev1/legacy/i2c.c **** #include <stdlib.h>
+   4:keyboards/crkbd/rev1/legacy/i2c.c **** #include <avr/interrupt.h>
+   5:keyboards/crkbd/rev1/legacy/i2c.c **** #include <util/twi.h>
+   6:keyboards/crkbd/rev1/legacy/i2c.c **** #include <stdbool.h>
+   7:keyboards/crkbd/rev1/legacy/i2c.c **** #include "i2c.h"
+   8:keyboards/crkbd/rev1/legacy/i2c.c **** 
+   9:keyboards/crkbd/rev1/legacy/i2c.c **** #if defined(USE_I2C) || defined(USE_MATRIX_I2C)
+  10:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  11:keyboards/crkbd/rev1/legacy/i2c.c **** // Limits the amount of we wait for any one i2c transaction.
+  12:keyboards/crkbd/rev1/legacy/i2c.c **** // Since were running SCL line 100kHz (=> 10μs/bit), and each transactions is
+  13:keyboards/crkbd/rev1/legacy/i2c.c **** // 9 bits, a single transaction will take around 90μs to complete.
+  14:keyboards/crkbd/rev1/legacy/i2c.c **** //
+  15:keyboards/crkbd/rev1/legacy/i2c.c **** // (F_CPU/SCL_CLOCK)  =>  # of μC cycles to transfer a bit
+  16:keyboards/crkbd/rev1/legacy/i2c.c **** // poll loop takes at least 8 clock cycles to execute
+  17:keyboards/crkbd/rev1/legacy/i2c.c **** #define I2C_LOOP_TIMEOUT (9+1)*(F_CPU/SCL_CLOCK)/8
+  18:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  19:keyboards/crkbd/rev1/legacy/i2c.c **** #define BUFFER_POS_INC() (slave_buffer_pos = (slave_buffer_pos+1)%SLAVE_BUFFER_SIZE)
+  20:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  21:keyboards/crkbd/rev1/legacy/i2c.c **** volatile uint8_t i2c_slave_buffer[SLAVE_BUFFER_SIZE];
+  22:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  23:keyboards/crkbd/rev1/legacy/i2c.c **** static volatile uint8_t slave_buffer_pos;
+  24:keyboards/crkbd/rev1/legacy/i2c.c **** static volatile bool slave_has_register_set = false;
+  25:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  26:keyboards/crkbd/rev1/legacy/i2c.c **** // Wait for an i2c operation to finish
+  27:keyboards/crkbd/rev1/legacy/i2c.c **** inline static
+  28:keyboards/crkbd/rev1/legacy/i2c.c **** void i2c_delay(void) {
+  15               		.loc 1 28 22 view -0
+  16               		.cfi_startproc
+  17               	/* prologue: function */
+  18               	/* frame size = 0 */
+  19               	/* stack size = 0 */
+  20               	.L__stack_usage = 0
+  29:keyboards/crkbd/rev1/legacy/i2c.c ****   uint16_t lim = 0;
+  21               		.loc 1 29 3 view .LVU1
+  22               	.LVL0:
+  30:keyboards/crkbd/rev1/legacy/i2c.c ****   while(!(TWCR & (1<<TWINT)) && lim < I2C_LOOP_TIMEOUT)
+  23               		.loc 1 30 3 view .LVU2
+  24               		.loc 1 30 8 is_stmt 0 view .LVU3
+  25 0000 83E3      		ldi r24,lo8(51)
+  26 0002 90E0      		ldi r25,0
+  27               	.LVL1:
+  28               	.L3:
+  29               		.loc 1 30 8 is_stmt 1 view .LVU4
+  30               		.loc 1 30 11 is_stmt 0 view .LVU5
+  31 0004 2091 BC00 		lds r18,188
+  32               		.loc 1 30 8 view .LVU6
+  33 0008 27FD      		sbrc r18,7
+  34 000a 00C0      		rjmp .L1
+  35 000c 0197      		sbiw r24,1
+  36               	.LVL2:
+  37               		.loc 1 30 30 discriminator 1 view .LVU7
+  38 000e 01F4      		brne .L3
+  39               	.LVL3:
+  40               	.L1:
+  41               	/* epilogue start */
+  31:keyboards/crkbd/rev1/legacy/i2c.c ****     lim++;
+  32:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  33:keyboards/crkbd/rev1/legacy/i2c.c ****   // easier way, but will wait slightly longer
+  34:keyboards/crkbd/rev1/legacy/i2c.c ****   // _delay_us(100);
+  35:keyboards/crkbd/rev1/legacy/i2c.c **** }
+  42               		.loc 1 35 1 view .LVU8
+  43 0010 0895      		ret
+  44               		.cfi_endproc
+  45               	.LFE6:
+  47               		.section	.text.i2c_master_init,"ax",@progbits
+  48               	.global	i2c_master_init
+  50               	i2c_master_init:
+  51               	.LFB7:
+  36:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  37:keyboards/crkbd/rev1/legacy/i2c.c **** // Setup twi to run at 100kHz or 400kHz (see ./i2c.h SCL_CLOCK)
+  38:keyboards/crkbd/rev1/legacy/i2c.c **** void i2c_master_init(void) {
+  52               		.loc 1 38 28 is_stmt 1 view -0
+  53               		.cfi_startproc
+  54               	/* prologue: function */
+  55               	/* frame size = 0 */
+  56               	/* stack size = 0 */
+  57               	.L__stack_usage = 0
+  39:keyboards/crkbd/rev1/legacy/i2c.c ****   // no prescaler
+  40:keyboards/crkbd/rev1/legacy/i2c.c ****   TWSR = 0;
+  58               		.loc 1 40 3 view .LVU10
+  59               		.loc 1 40 8 is_stmt 0 view .LVU11
+  60 0000 1092 B900 		sts 185,__zero_reg__
+  41:keyboards/crkbd/rev1/legacy/i2c.c ****   // Set TWI clock frequency to SCL_CLOCK. Need TWBR>10.
+  42:keyboards/crkbd/rev1/legacy/i2c.c ****   // Check datasheets for more info.
+  43:keyboards/crkbd/rev1/legacy/i2c.c ****   TWBR = ((F_CPU/SCL_CLOCK)-16)/2;
+  61               		.loc 1 43 3 is_stmt 1 view .LVU12
+  62               		.loc 1 43 8 is_stmt 0 view .LVU13
+  63 0004 8CE0      		ldi r24,lo8(12)
+  64 0006 8093 B800 		sts 184,r24
+  65               	/* epilogue start */
+  44:keyboards/crkbd/rev1/legacy/i2c.c **** }
+  66               		.loc 1 44 1 view .LVU14
+  67 000a 0895      		ret
+  68               		.cfi_endproc
+  69               	.LFE7:
+  71               		.section	.text.i2c_master_start,"ax",@progbits
+  72               	.global	i2c_master_start
+  74               	i2c_master_start:
+  75               	.LVL4:
+  76               	.LFB8:
+  45:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  46:keyboards/crkbd/rev1/legacy/i2c.c **** // Start a transaction with the given i2c slave address. The direction of the
+  47:keyboards/crkbd/rev1/legacy/i2c.c **** // transfer is set with I2C_READ and I2C_WRITE.
+  48:keyboards/crkbd/rev1/legacy/i2c.c **** // returns: 0 => success
+  49:keyboards/crkbd/rev1/legacy/i2c.c **** //          1 => error
+  50:keyboards/crkbd/rev1/legacy/i2c.c **** uint8_t i2c_master_start(uint8_t address) {
+  77               		.loc 1 50 43 is_stmt 1 view -0
+  78               		.cfi_startproc
+  79               		.loc 1 50 43 is_stmt 0 view .LVU16
+  80 0000 CF93      		push r28
+  81               	.LCFI0:
+  82               		.cfi_def_cfa_offset 3
+  83               		.cfi_offset 28, -2
+  84               	/* prologue: function */
+  85               	/* frame size = 0 */
+  86               	/* stack size = 1 */
+  87               	.L__stack_usage = 1
+  88 0002 C82F      		mov r28,r24
+  51:keyboards/crkbd/rev1/legacy/i2c.c ****   TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTA);
+  89               		.loc 1 51 3 is_stmt 1 view .LVU17
+  90               		.loc 1 51 8 is_stmt 0 view .LVU18
+  91 0004 84EA      		ldi r24,lo8(-92)
+  92               	.LVL5:
+  93               		.loc 1 51 8 view .LVU19
+  94 0006 8093 BC00 		sts 188,r24
+  52:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  53:keyboards/crkbd/rev1/legacy/i2c.c ****   i2c_delay();
+  95               		.loc 1 53 3 is_stmt 1 view .LVU20
+  96 000a 0E94 0000 		call i2c_delay
+  97               	.LVL6:
+  54:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  55:keyboards/crkbd/rev1/legacy/i2c.c ****   // check that we started successfully
+  56:keyboards/crkbd/rev1/legacy/i2c.c ****   if ( (TW_STATUS != TW_START) && (TW_STATUS != TW_REP_START))
+  98               		.loc 1 56 3 view .LVU21
+  99               		.loc 1 56 9 is_stmt 0 view .LVU22
+ 100 000e 8091 B900 		lds r24,185
+ 101               		.loc 1 56 6 view .LVU23
+ 102 0012 887F      		andi r24,lo8(-8)
+ 103 0014 8830      		cpi r24,lo8(8)
+ 104 0016 01F0      		breq .L7
+ 105               		.loc 1 56 36 discriminator 1 view .LVU24
+ 106 0018 8091 B900 		lds r24,185
+ 107               		.loc 1 56 32 discriminator 1 view .LVU25
+ 108 001c 887F      		andi r24,lo8(-8)
+ 109 001e 8031      		cpi r24,lo8(16)
+ 110 0020 01F0      		breq .L7
+ 111               	.L9:
+  57:keyboards/crkbd/rev1/legacy/i2c.c ****     return 1;
+ 112               		.loc 1 57 12 view .LVU26
+ 113 0022 81E0      		ldi r24,lo8(1)
+ 114               	.L6:
+ 115               	/* epilogue start */
+  58:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  59:keyboards/crkbd/rev1/legacy/i2c.c ****   TWDR = address;
+  60:keyboards/crkbd/rev1/legacy/i2c.c ****   TWCR = (1<<TWINT) | (1<<TWEN);
+  61:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  62:keyboards/crkbd/rev1/legacy/i2c.c ****   i2c_delay();
+  63:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  64:keyboards/crkbd/rev1/legacy/i2c.c ****   if ( (TW_STATUS != TW_MT_SLA_ACK) && (TW_STATUS != TW_MR_SLA_ACK) )
+  65:keyboards/crkbd/rev1/legacy/i2c.c ****     return 1; // slave did not acknowledge
+  66:keyboards/crkbd/rev1/legacy/i2c.c ****   else
+  67:keyboards/crkbd/rev1/legacy/i2c.c ****     return 0; // success
+  68:keyboards/crkbd/rev1/legacy/i2c.c **** }
+ 116               		.loc 1 68 1 view .LVU27
+ 117 0024 CF91      		pop r28
+ 118               	.LVL7:
+ 119               		.loc 1 68 1 view .LVU28
+ 120 0026 0895      		ret
+ 121               	.LVL8:
+ 122               	.L7:
+  59:keyboards/crkbd/rev1/legacy/i2c.c ****   TWCR = (1<<TWINT) | (1<<TWEN);
+ 123               		.loc 1 59 3 is_stmt 1 view .LVU29
+  59:keyboards/crkbd/rev1/legacy/i2c.c ****   TWCR = (1<<TWINT) | (1<<TWEN);
+ 124               		.loc 1 59 8 is_stmt 0 view .LVU30
+ 125 0028 C093 BB00 		sts 187,r28
+  60:keyboards/crkbd/rev1/legacy/i2c.c **** 
+ 126               		.loc 1 60 3 is_stmt 1 view .LVU31
+  60:keyboards/crkbd/rev1/legacy/i2c.c **** 
+ 127               		.loc 1 60 8 is_stmt 0 view .LVU32
+ 128 002c 84E8      		ldi r24,lo8(-124)
+ 129 002e 8093 BC00 		sts 188,r24
+  62:keyboards/crkbd/rev1/legacy/i2c.c **** 
+ 130               		.loc 1 62 3 is_stmt 1 view .LVU33
+ 131 0032 0E94 0000 		call i2c_delay
+ 132               	.LVL9:
+  64:keyboards/crkbd/rev1/legacy/i2c.c ****     return 1; // slave did not acknowledge
+ 133               		.loc 1 64 3 view .LVU34
+  64:keyboards/crkbd/rev1/legacy/i2c.c ****     return 1; // slave did not acknowledge
+ 134               		.loc 1 64 9 is_stmt 0 view .LVU35
+ 135 0036 8091 B900 		lds r24,185
+  64:keyboards/crkbd/rev1/legacy/i2c.c ****     return 1; // slave did not acknowledge
+ 136               		.loc 1 64 6 view .LVU36
+ 137 003a 887F      		andi r24,lo8(-8)
+ 138 003c 8831      		cpi r24,lo8(24)
+ 139 003e 01F0      		breq .L10
+  64:keyboards/crkbd/rev1/legacy/i2c.c ****     return 1; // slave did not acknowledge
+ 140               		.loc 1 64 41 discriminator 1 view .LVU37
+ 141 0040 8091 B900 		lds r24,185
+  64:keyboards/crkbd/rev1/legacy/i2c.c ****     return 1; // slave did not acknowledge
+ 142               		.loc 1 64 37 discriminator 1 view .LVU38
+ 143 0044 887F      		andi r24,lo8(-8)
+ 144 0046 8034      		cpi r24,lo8(64)
+ 145 0048 01F4      		brne .L9
+ 146               	.L10:
+  67:keyboards/crkbd/rev1/legacy/i2c.c **** }
+ 147               		.loc 1 67 12 view .LVU39
+ 148 004a 80E0      		ldi r24,0
+ 149 004c 00C0      		rjmp .L6
+ 150               		.cfi_endproc
+ 151               	.LFE8:
+ 153               		.section	.text.i2c_master_stop,"ax",@progbits
+ 154               	.global	i2c_master_stop
+ 156               	i2c_master_stop:
+ 157               	.LFB9:
+  69:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  70:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  71:keyboards/crkbd/rev1/legacy/i2c.c **** // Finish the i2c transaction.
+  72:keyboards/crkbd/rev1/legacy/i2c.c **** void i2c_master_stop(void) {
+ 158               		.loc 1 72 28 is_stmt 1 view -0
+ 159               		.cfi_startproc
+ 160               	/* prologue: function */
+ 161               	/* frame size = 0 */
+ 162               	/* stack size = 0 */
+ 163               	.L__stack_usage = 0
+  73:keyboards/crkbd/rev1/legacy/i2c.c ****   TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO);
+ 164               		.loc 1 73 3 view .LVU41
+ 165               		.loc 1 73 8 is_stmt 0 view .LVU42
+ 166 0000 84E9      		ldi r24,lo8(-108)
+ 167 0002 8093 BC00 		sts 188,r24
+  74:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  75:keyboards/crkbd/rev1/legacy/i2c.c ****   uint16_t lim = 0;
+ 168               		.loc 1 75 3 is_stmt 1 view .LVU43
+ 169               	.LVL10:
+  76:keyboards/crkbd/rev1/legacy/i2c.c ****   while(!(TWCR & (1<<TWSTO)) && lim < I2C_LOOP_TIMEOUT)
+ 170               		.loc 1 76 3 view .LVU44
+ 171               		.loc 1 76 8 is_stmt 0 view .LVU45
+ 172 0006 83E3      		ldi r24,lo8(51)
+ 173 0008 90E0      		ldi r25,0
+ 174               	.LVL11:
+ 175               	.L19:
+ 176               		.loc 1 76 8 is_stmt 1 view .LVU46
+ 177               		.loc 1 76 11 is_stmt 0 view .LVU47
+ 178 000a 2091 BC00 		lds r18,188
+ 179               		.loc 1 76 8 view .LVU48
+ 180 000e 24FD      		sbrc r18,4
+ 181 0010 00C0      		rjmp .L17
+ 182 0012 0197      		sbiw r24,1
+ 183               	.LVL12:
+ 184               		.loc 1 76 30 discriminator 1 view .LVU49
+ 185 0014 01F4      		brne .L19
+ 186               	.LVL13:
+ 187               	.L17:
+ 188               	/* epilogue start */
+  77:keyboards/crkbd/rev1/legacy/i2c.c ****     lim++;
+  78:keyboards/crkbd/rev1/legacy/i2c.c **** }
+ 189               		.loc 1 78 1 view .LVU50
+ 190 0016 0895      		ret
+ 191               		.cfi_endproc
+ 192               	.LFE9:
+ 194               		.section	.text.i2c_master_write,"ax",@progbits
+ 195               	.global	i2c_master_write
+ 197               	i2c_master_write:
+ 198               	.LVL14:
+ 199               	.LFB10:
+  79:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  80:keyboards/crkbd/rev1/legacy/i2c.c **** // Write one byte to the i2c slave.
+  81:keyboards/crkbd/rev1/legacy/i2c.c **** // returns 0 => slave ACK
+  82:keyboards/crkbd/rev1/legacy/i2c.c **** //         1 => slave NACK
+  83:keyboards/crkbd/rev1/legacy/i2c.c **** uint8_t i2c_master_write(uint8_t data) {
+ 200               		.loc 1 83 40 is_stmt 1 view -0
+ 201               		.cfi_startproc
+ 202               	/* prologue: function */
+ 203               	/* frame size = 0 */
+ 204               	/* stack size = 0 */
+ 205               	.L__stack_usage = 0
+  84:keyboards/crkbd/rev1/legacy/i2c.c ****   TWDR = data;
+ 206               		.loc 1 84 3 view .LVU52
+ 207               		.loc 1 84 8 is_stmt 0 view .LVU53
+ 208 0000 8093 BB00 		sts 187,r24
+  85:keyboards/crkbd/rev1/legacy/i2c.c ****   TWCR = (1<<TWINT) | (1<<TWEN);
+ 209               		.loc 1 85 3 is_stmt 1 view .LVU54
+ 210               		.loc 1 85 8 is_stmt 0 view .LVU55
+ 211 0004 84E8      		ldi r24,lo8(-124)
+ 212               	.LVL15:
+ 213               		.loc 1 85 8 view .LVU56
+ 214 0006 8093 BC00 		sts 188,r24
+ 215               	.LVL16:
+  86:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  87:keyboards/crkbd/rev1/legacy/i2c.c ****   i2c_delay();
+ 216               		.loc 1 87 3 is_stmt 1 view .LVU57
+ 217 000a 0E94 0000 		call i2c_delay
+ 218               	.LVL17:
+  88:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  89:keyboards/crkbd/rev1/legacy/i2c.c ****   // check if the slave acknowledged us
+  90:keyboards/crkbd/rev1/legacy/i2c.c ****   return (TW_STATUS == TW_MT_DATA_ACK) ? 0 : 1;
+ 219               		.loc 1 90 3 view .LVU58
+ 220               		.loc 1 90 11 is_stmt 0 view .LVU59
+ 221 000e 9091 B900 		lds r25,185
+ 222               		.loc 1 90 44 view .LVU60
+ 223 0012 987F      		andi r25,lo8(-8)
+ 224 0014 81E0      		ldi r24,lo8(1)
+ 225 0016 9832      		cpi r25,lo8(40)
+ 226 0018 01F4      		brne .L22
+ 227 001a 80E0      		ldi r24,0
+ 228               	.L22:
+ 229               	/* epilogue start */
+  91:keyboards/crkbd/rev1/legacy/i2c.c **** }
+ 230               		.loc 1 91 1 view .LVU61
+ 231 001c 0895      		ret
+ 232               		.cfi_endproc
+ 233               	.LFE10:
+ 235               		.section	.text.i2c_master_read,"ax",@progbits
+ 236               	.global	i2c_master_read
+ 238               	i2c_master_read:
+ 239               	.LVL18:
+ 240               	.LFB11:
+  92:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  93:keyboards/crkbd/rev1/legacy/i2c.c **** // Read one byte from the i2c slave. If ack=1 the slave is acknowledged,
+  94:keyboards/crkbd/rev1/legacy/i2c.c **** // if ack=0 the acknowledge bit is not set.
+  95:keyboards/crkbd/rev1/legacy/i2c.c **** // returns: byte read from i2c device
+  96:keyboards/crkbd/rev1/legacy/i2c.c **** uint8_t i2c_master_read(int ack) {
+ 241               		.loc 1 96 34 is_stmt 1 view -0
+ 242               		.cfi_startproc
+ 243               	/* prologue: function */
+ 244               	/* frame size = 0 */
+ 245               	/* stack size = 0 */
+ 246               	.L__stack_usage = 0
+  97:keyboards/crkbd/rev1/legacy/i2c.c ****   TWCR = (1<<TWINT) | (1<<TWEN) | (ack<<TWEA);
+ 247               		.loc 1 97 3 view .LVU63
+ 248               		.loc 1 97 39 is_stmt 0 view .LVU64
+ 249 0000 26E0      		ldi r18,6
+ 250               		1:
+ 251 0002 880F      		lsl r24
+ 252 0004 991F      		rol r25
+ 253 0006 2A95      		dec r18
+ 254 0008 01F4      		brne 1b
+ 255               	.LVL19:
+ 256               		.loc 1 97 33 view .LVU65
+ 257 000a 8468      		ori r24,lo8(-124)
+ 258               		.loc 1 97 8 view .LVU66
+ 259 000c 8093 BC00 		sts 188,r24
+  98:keyboards/crkbd/rev1/legacy/i2c.c **** 
+  99:keyboards/crkbd/rev1/legacy/i2c.c ****   i2c_delay();
+ 260               		.loc 1 99 3 is_stmt 1 view .LVU67
+ 261 0010 0E94 0000 		call i2c_delay
+ 262               	.LVL20:
+ 100:keyboards/crkbd/rev1/legacy/i2c.c ****   return TWDR;
+ 263               		.loc 1 100 3 view .LVU68
+ 264               		.loc 1 100 10 is_stmt 0 view .LVU69
+ 265 0014 8091 BB00 		lds r24,187
+ 266               	/* epilogue start */
+ 101:keyboards/crkbd/rev1/legacy/i2c.c **** }
+ 267               		.loc 1 101 1 view .LVU70
+ 268 0018 0895      		ret
+ 269               		.cfi_endproc
+ 270               	.LFE11:
+ 272               		.section	.text.i2c_reset_state,"ax",@progbits
+ 273               	.global	i2c_reset_state
+ 275               	i2c_reset_state:
+ 276               	.LFB12:
+ 102:keyboards/crkbd/rev1/legacy/i2c.c **** 
+ 103:keyboards/crkbd/rev1/legacy/i2c.c **** void i2c_reset_state(void) {
+ 277               		.loc 1 103 28 is_stmt 1 view -0
+ 278               		.cfi_startproc
+ 279               	/* prologue: function */
+ 280               	/* frame size = 0 */
+ 281               	/* stack size = 0 */
+ 282               	.L__stack_usage = 0
+ 104:keyboards/crkbd/rev1/legacy/i2c.c ****   TWCR = 0;
+ 283               		.loc 1 104 3 view .LVU72
+ 284               		.loc 1 104 8 is_stmt 0 view .LVU73
+ 285 0000 1092 BC00 		sts 188,__zero_reg__
+ 286               	/* epilogue start */
+ 105:keyboards/crkbd/rev1/legacy/i2c.c **** }
+ 287               		.loc 1 105 1 view .LVU74
+ 288 0004 0895      		ret
+ 289               		.cfi_endproc
+ 290               	.LFE12:
+ 292               		.section	.text.i2c_slave_init,"ax",@progbits
+ 293               	.global	i2c_slave_init
+ 295               	i2c_slave_init:
+ 296               	.LVL21:
+ 297               	.LFB13:
+ 106:keyboards/crkbd/rev1/legacy/i2c.c **** 
+ 107:keyboards/crkbd/rev1/legacy/i2c.c **** void i2c_slave_init(uint8_t address) {
+ 298               		.loc 1 107 38 is_stmt 1 view -0
+ 299               		.cfi_startproc
+ 300               	/* prologue: function */
+ 301               	/* frame size = 0 */
+ 302               	/* stack size = 0 */
+ 303               	.L__stack_usage = 0
+ 108:keyboards/crkbd/rev1/legacy/i2c.c ****   TWAR = address << 0; // slave i2c address
+ 304               		.loc 1 108 3 view .LVU76
+ 305               		.loc 1 108 8 is_stmt 0 view .LVU77
+ 306 0000 8093 BA00 		sts 186,r24
+ 109:keyboards/crkbd/rev1/legacy/i2c.c ****   // TWEN  - twi enable
+ 110:keyboards/crkbd/rev1/legacy/i2c.c ****   // TWEA  - enable address acknowledgement
+ 111:keyboards/crkbd/rev1/legacy/i2c.c ****   // TWINT - twi interrupt flag
+ 112:keyboards/crkbd/rev1/legacy/i2c.c ****   // TWIE  - enable the twi interrupt
+ 113:keyboards/crkbd/rev1/legacy/i2c.c ****   TWCR = (1<<TWIE) | (1<<TWEA) | (1<<TWINT) | (1<<TWEN);
+ 307               		.loc 1 113 3 is_stmt 1 view .LVU78
+ 308               		.loc 1 113 8 is_stmt 0 view .LVU79
+ 309 0004 85EC      		ldi r24,lo8(-59)
+ 310               	.LVL22:
+ 311               		.loc 1 113 8 view .LVU80
+ 312 0006 8093 BC00 		sts 188,r24
+ 313               	.LVL23:
+ 314               	/* epilogue start */
+ 114:keyboards/crkbd/rev1/legacy/i2c.c **** }
+ 315               		.loc 1 114 1 view .LVU81
+ 316 000a 0895      		ret
+ 317               		.cfi_endproc
+ 318               	.LFE13:
+ 320               		.section	.text.__vector_36,"ax",@progbits
+ 321               	.global	__vector_36
+ 323               	__vector_36:
+ 324               	.LFB14:
+ 115:keyboards/crkbd/rev1/legacy/i2c.c **** 
+ 116:keyboards/crkbd/rev1/legacy/i2c.c **** ISR(TWI_vect);
+ 117:keyboards/crkbd/rev1/legacy/i2c.c **** 
+ 118:keyboards/crkbd/rev1/legacy/i2c.c **** ISR(TWI_vect) {
+ 325               		.loc 1 118 15 is_stmt 1 view -0
+ 326               		.cfi_startproc
+ 327 0000 1F92 1FB6 		__gcc_isr 1
+ 327      1F92 1124 
+ 327      8F93 
+ 328 000a 9F93      		push r25
+ 329               	.LCFI1:
+ 330               		.cfi_def_cfa_offset 3
+ 331               		.cfi_offset 25, -2
+ 332 000c EF93      		push r30
+ 333               	.LCFI2:
+ 334               		.cfi_def_cfa_offset 4
+ 335               		.cfi_offset 30, -3
+ 336 000e FF93      		push r31
+ 337               	.LCFI3:
+ 338               		.cfi_def_cfa_offset 5
+ 339               		.cfi_offset 31, -4
+ 340               	/* prologue: Signal */
+ 341               	/* frame size = 0 */
+ 342               	/* stack size = 3...7 */
+ 343               	.L__stack_usage = 3 + __gcc_isr.n_pushed
+ 119:keyboards/crkbd/rev1/legacy/i2c.c ****   uint8_t ack = 1;
+ 344               		.loc 1 119 3 view .LVU83
+ 345               	.LVL24:
+ 120:keyboards/crkbd/rev1/legacy/i2c.c ****   switch(TW_STATUS) {
+ 346               		.loc 1 120 3 view .LVU84
+ 347               		.loc 1 120 10 is_stmt 0 view .LVU85
+ 348 0010 8091 B900 		lds r24,185
+ 349 0014 887F      		andi r24,lo8(-8)
+ 350               		.loc 1 120 3 view .LVU86
+ 351 0016 8038      		cpi r24,lo8(-128)
+ 352 0018 01F0      		breq .L27
+ 353 001a 00F4      		brsh .L28
+ 354 001c 8823      		tst r24
+ 355 001e 01F4      		brne .+2
+ 356 0020 00C0      		rjmp .L29
+ 357 0022 8036      		cpi r24,lo8(96)
+ 358 0024 01F0      		breq .L30
+ 359               	.L42:
+ 119:keyboards/crkbd/rev1/legacy/i2c.c ****   uint8_t ack = 1;
+ 360               		.loc 1 119 11 view .LVU87
+ 361 0026 81E0      		ldi r24,lo8(1)
+ 362 0028 00C0      		rjmp .L31
+ 363               	.L28:
+ 364               		.loc 1 120 3 view .LVU88
+ 365 002a 883A      		cpi r24,lo8(-88)
+ 366 002c 01F0      		breq .L32
+ 367 002e 883B      		cpi r24,lo8(-72)
+ 368 0030 01F4      		brne .L42
+ 369               	.L32:
+ 121:keyboards/crkbd/rev1/legacy/i2c.c ****     case TW_SR_SLA_ACK:
+ 122:keyboards/crkbd/rev1/legacy/i2c.c ****       // this device has been addressed as a slave receiver
+ 123:keyboards/crkbd/rev1/legacy/i2c.c ****       slave_has_register_set = false;
+ 124:keyboards/crkbd/rev1/legacy/i2c.c ****       break;
+ 125:keyboards/crkbd/rev1/legacy/i2c.c **** 
+ 126:keyboards/crkbd/rev1/legacy/i2c.c ****     case TW_SR_DATA_ACK:
+ 127:keyboards/crkbd/rev1/legacy/i2c.c ****       // this device has received data as a slave receiver
+ 128:keyboards/crkbd/rev1/legacy/i2c.c ****       // The first byte that we receive in this transaction sets the location
+ 129:keyboards/crkbd/rev1/legacy/i2c.c ****       // of the read/write location of the slaves memory that it exposes over
+ 130:keyboards/crkbd/rev1/legacy/i2c.c ****       // i2c.  After that, bytes will be written at slave_buffer_pos, incrementing
+ 131:keyboards/crkbd/rev1/legacy/i2c.c ****       // slave_buffer_pos after each write.
+ 132:keyboards/crkbd/rev1/legacy/i2c.c ****       if(!slave_has_register_set) {
+ 133:keyboards/crkbd/rev1/legacy/i2c.c ****         slave_buffer_pos = TWDR;
+ 134:keyboards/crkbd/rev1/legacy/i2c.c ****         // don't acknowledge the master if this memory loctaion is out of bounds
+ 135:keyboards/crkbd/rev1/legacy/i2c.c ****         if ( slave_buffer_pos >= SLAVE_BUFFER_SIZE ) {
+ 136:keyboards/crkbd/rev1/legacy/i2c.c ****           ack = 0;
+ 137:keyboards/crkbd/rev1/legacy/i2c.c ****           slave_buffer_pos = 0;
+ 138:keyboards/crkbd/rev1/legacy/i2c.c ****         }
+ 139:keyboards/crkbd/rev1/legacy/i2c.c ****         slave_has_register_set = true;
+ 140:keyboards/crkbd/rev1/legacy/i2c.c ****       } else {
+ 141:keyboards/crkbd/rev1/legacy/i2c.c ****         i2c_slave_buffer[slave_buffer_pos] = TWDR;
+ 142:keyboards/crkbd/rev1/legacy/i2c.c ****         BUFFER_POS_INC();
+ 143:keyboards/crkbd/rev1/legacy/i2c.c ****       }
+ 144:keyboards/crkbd/rev1/legacy/i2c.c ****       break;
+ 145:keyboards/crkbd/rev1/legacy/i2c.c **** 
+ 146:keyboards/crkbd/rev1/legacy/i2c.c ****     case TW_ST_SLA_ACK:
+ 147:keyboards/crkbd/rev1/legacy/i2c.c ****     case TW_ST_DATA_ACK:
+ 148:keyboards/crkbd/rev1/legacy/i2c.c ****       // master has addressed this device as a slave transmitter and is
+ 149:keyboards/crkbd/rev1/legacy/i2c.c ****       // requesting data.
+ 150:keyboards/crkbd/rev1/legacy/i2c.c ****       TWDR = i2c_slave_buffer[slave_buffer_pos];
+ 370               		.loc 1 150 7 is_stmt 1 view .LVU89
+ 371               		.loc 1 150 30 is_stmt 0 view .LVU90
+ 372 0032 E091 0000 		lds r30,slave_buffer_pos
+ 373 0036 F0E0      		ldi r31,0
+ 374 0038 E050      		subi r30,lo8(-(i2c_slave_buffer))
+ 375 003a F040      		sbci r31,hi8(-(i2c_slave_buffer))
+ 376 003c 8081      		ld r24,Z
+ 377               		.loc 1 150 12 view .LVU91
+ 378 003e 8093 BB00 		sts 187,r24
+ 379 0042 00C0      		rjmp .L43
+ 380               	.L30:
+ 123:keyboards/crkbd/rev1/legacy/i2c.c ****       break;
+ 381               		.loc 1 123 7 is_stmt 1 view .LVU92
+ 123:keyboards/crkbd/rev1/legacy/i2c.c ****       break;
+ 382               		.loc 1 123 30 is_stmt 0 view .LVU93
+ 383 0044 1092 0000 		sts slave_has_register_set,__zero_reg__
+ 124:keyboards/crkbd/rev1/legacy/i2c.c **** 
+ 384               		.loc 1 124 7 is_stmt 1 view .LVU94
+ 385 0048 00C0      		rjmp .L42
+ 386               	.L27:
+ 132:keyboards/crkbd/rev1/legacy/i2c.c ****         slave_buffer_pos = TWDR;
+ 387               		.loc 1 132 7 view .LVU95
+ 132:keyboards/crkbd/rev1/legacy/i2c.c ****         slave_buffer_pos = TWDR;
+ 388               		.loc 1 132 10 is_stmt 0 view .LVU96
+ 389 004a 8091 0000 		lds r24,slave_has_register_set
+ 132:keyboards/crkbd/rev1/legacy/i2c.c ****         slave_buffer_pos = TWDR;
+ 390               		.loc 1 132 9 view .LVU97
+ 391 004e 8111      		cpse r24,__zero_reg__
+ 392 0050 00C0      		rjmp .L33
+ 133:keyboards/crkbd/rev1/legacy/i2c.c ****         // don't acknowledge the master if this memory loctaion is out of bounds
+ 393               		.loc 1 133 9 is_stmt 1 view .LVU98
+ 133:keyboards/crkbd/rev1/legacy/i2c.c ****         // don't acknowledge the master if this memory loctaion is out of bounds
+ 394               		.loc 1 133 28 is_stmt 0 view .LVU99
+ 395 0052 8091 BB00 		lds r24,187
+ 133:keyboards/crkbd/rev1/legacy/i2c.c ****         // don't acknowledge the master if this memory loctaion is out of bounds
+ 396               		.loc 1 133 26 view .LVU100
+ 397 0056 8093 0000 		sts slave_buffer_pos,r24
+ 135:keyboards/crkbd/rev1/legacy/i2c.c ****           ack = 0;
+ 398               		.loc 1 135 9 is_stmt 1 view .LVU101
+ 135:keyboards/crkbd/rev1/legacy/i2c.c ****           ack = 0;
+ 399               		.loc 1 135 31 is_stmt 0 view .LVU102
+ 400 005a 8091 0000 		lds r24,slave_buffer_pos
+ 135:keyboards/crkbd/rev1/legacy/i2c.c ****           ack = 0;
+ 401               		.loc 1 135 12 view .LVU103
+ 402 005e 8031      		cpi r24,lo8(16)
+ 403 0060 00F0      		brlo .L35
+ 136:keyboards/crkbd/rev1/legacy/i2c.c ****           slave_buffer_pos = 0;
+ 404               		.loc 1 136 11 is_stmt 1 view .LVU104
+ 405               	.LVL25:
+ 137:keyboards/crkbd/rev1/legacy/i2c.c ****         }
+ 406               		.loc 1 137 11 view .LVU105
+ 137:keyboards/crkbd/rev1/legacy/i2c.c ****         }
+ 407               		.loc 1 137 28 is_stmt 0 view .LVU106
+ 408 0062 1092 0000 		sts slave_buffer_pos,__zero_reg__
+ 136:keyboards/crkbd/rev1/legacy/i2c.c ****           slave_buffer_pos = 0;
+ 409               		.loc 1 136 15 view .LVU107
+ 410 0066 80E0      		ldi r24,0
+ 411               	.LVL26:
+ 412               	.L34:
+ 139:keyboards/crkbd/rev1/legacy/i2c.c ****       } else {
+ 413               		.loc 1 139 9 is_stmt 1 view .LVU108
+ 139:keyboards/crkbd/rev1/legacy/i2c.c ****       } else {
+ 414               		.loc 1 139 32 is_stmt 0 view .LVU109
+ 415 0068 91E0      		ldi r25,lo8(1)
+ 416 006a 9093 0000 		sts slave_has_register_set,r25
+ 417               	.LVL27:
+ 418               	.L31:
+ 151:keyboards/crkbd/rev1/legacy/i2c.c ****       BUFFER_POS_INC();
+ 152:keyboards/crkbd/rev1/legacy/i2c.c ****       break;
+ 153:keyboards/crkbd/rev1/legacy/i2c.c **** 
+ 154:keyboards/crkbd/rev1/legacy/i2c.c ****     case TW_BUS_ERROR: // something went wrong, reset twi state
+ 155:keyboards/crkbd/rev1/legacy/i2c.c ****       TWCR = 0;
+ 156:keyboards/crkbd/rev1/legacy/i2c.c ****     default:
+ 157:keyboards/crkbd/rev1/legacy/i2c.c ****       break;
+ 158:keyboards/crkbd/rev1/legacy/i2c.c ****   }
+ 159:keyboards/crkbd/rev1/legacy/i2c.c ****   // Reset everything, so we are ready for the next TWI interrupt
+ 160:keyboards/crkbd/rev1/legacy/i2c.c ****   TWCR |= (1<<TWIE) | (1<<TWINT) | (ack<<TWEA) | (1<<TWEN);
+ 419               		.loc 1 160 3 is_stmt 1 view .LVU110
+ 420               		.loc 1 160 8 is_stmt 0 view .LVU111
+ 421 006e 9091 BC00 		lds r25,188
+ 422               		.loc 1 160 40 view .LVU112
+ 423 0072 8295      		swap r24
+ 424               	.LVL28:
+ 425               		.loc 1 160 40 view .LVU113
+ 426 0074 880F      		lsl r24
+ 427 0076 880F      		lsl r24
+ 428 0078 807C      		andi r24,lo8(-64)
+ 429               		.loc 1 160 8 view .LVU114
+ 430 007a 892B      		or r24,r25
+ 431 007c 8568      		ori r24,lo8(-123)
+ 432 007e 8093 BC00 		sts 188,r24
+ 433               	/* epilogue start */
+ 161:keyboards/crkbd/rev1/legacy/i2c.c **** }
+ 434               		.loc 1 161 1 view .LVU115
+ 435 0082 FF91      		pop r31
+ 436 0084 EF91      		pop r30
+ 437 0086 9F91      		pop r25
+ 438 0088 8F91 1F90 		__gcc_isr 2
+ 438      1FBE 1F90 
+ 439 0090 1895      		reti
+ 440               	.LVL29:
+ 441               	.L35:
+ 119:keyboards/crkbd/rev1/legacy/i2c.c ****   switch(TW_STATUS) {
+ 442               		.loc 1 119 11 view .LVU116
+ 443 0092 81E0      		ldi r24,lo8(1)
+ 444 0094 00C0      		rjmp .L34
+ 445               	.L33:
+ 141:keyboards/crkbd/rev1/legacy/i2c.c ****         BUFFER_POS_INC();
+ 446               		.loc 1 141 9 is_stmt 1 view .LVU117
+ 141:keyboards/crkbd/rev1/legacy/i2c.c ****         BUFFER_POS_INC();
+ 447               		.loc 1 141 25 is_stmt 0 view .LVU118
+ 448 0096 E091 0000 		lds r30,slave_buffer_pos
+ 449 009a F0E0      		ldi r31,0
+ 141:keyboards/crkbd/rev1/legacy/i2c.c ****         BUFFER_POS_INC();
+ 450               		.loc 1 141 46 view .LVU119
+ 451 009c 8091 BB00 		lds r24,187
+ 141:keyboards/crkbd/rev1/legacy/i2c.c ****         BUFFER_POS_INC();
+ 452               		.loc 1 141 44 view .LVU120
+ 453 00a0 E050      		subi r30,lo8(-(i2c_slave_buffer))
+ 454 00a2 F040      		sbci r31,hi8(-(i2c_slave_buffer))
+ 455 00a4 8083      		st Z,r24
+ 142:keyboards/crkbd/rev1/legacy/i2c.c ****       }
+ 456               		.loc 1 142 9 is_stmt 1 view .LVU121
+ 457               	.L43:
+ 151:keyboards/crkbd/rev1/legacy/i2c.c ****       break;
+ 458               		.loc 1 151 7 view .LVU122
+ 459 00a6 8091 0000 		lds r24,slave_buffer_pos
+ 460 00aa 90E0      		ldi r25,0
+ 461 00ac 0196      		adiw r24,1
+ 462 00ae 8F70      		andi r24,15
+ 463 00b0 9927      		clr r25
+ 464 00b2 8093 0000 		sts slave_buffer_pos,r24
+ 152:keyboards/crkbd/rev1/legacy/i2c.c **** 
+ 465               		.loc 1 152 7 view .LVU123
+ 466 00b6 00C0      		rjmp .L42
+ 467               	.L29:
+ 155:keyboards/crkbd/rev1/legacy/i2c.c ****     default:
+ 468               		.loc 1 155 7 view .LVU124
+ 155:keyboards/crkbd/rev1/legacy/i2c.c ****     default:
+ 469               		.loc 1 155 12 is_stmt 0 view .LVU125
+ 470 00b8 1092 BC00 		sts 188,__zero_reg__
+ 471 00bc 00C0      		rjmp .L42
+ 472               		__gcc_isr 0,r24
+ 473               		.cfi_endproc
+ 474               	.LFE14:
+ 476               		.section	.bss.slave_has_register_set,"aw",@nobits
+ 479               	slave_has_register_set:
+ 480 0000 00        		.zero	1
+ 481               		.section	.bss.slave_buffer_pos,"aw",@nobits
+ 484               	slave_buffer_pos:
+ 485 0000 00        		.zero	1
+ 486               		.comm	i2c_slave_buffer,16,1
+ 487               		.text
+ 488               	.Letext0:
+ 489               		.file 2 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdint.h"
+ 490               		.file 3 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/lib/avr-gcc/8/gcc/avr/8.4.0/include/stddef.h"
+ 491               		.file 4 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdlib.h"
+ 492               		.file 5 "keyboards/crkbd/rev1/legacy/i2c.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 i2c.c
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:12     .text.i2c_delay:0000000000000000 i2c_delay
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:15     .text.i2c_delay:0000000000000000 .Loc.0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:16     .text.i2c_delay:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:21     .text.i2c_delay:0000000000000000 .Loc.1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:23     .text.i2c_delay:0000000000000000 .Loc.2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:24     .text.i2c_delay:0000000000000000 .Loc.3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:29     .text.i2c_delay:0000000000000004 .Loc.4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:30     .text.i2c_delay:0000000000000004 .Loc.5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:32     .text.i2c_delay:0000000000000008 .Loc.6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:37     .text.i2c_delay:000000000000000e .Loc.7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:42     .text.i2c_delay:0000000000000010 .Loc.8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:44     .text.i2c_delay:0000000000000012 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:50     .text.i2c_master_init:0000000000000000 i2c_master_init
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:52     .text.i2c_master_init:0000000000000000 .Loc.9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:53     .text.i2c_master_init:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:58     .text.i2c_master_init:0000000000000000 .Loc.10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:59     .text.i2c_master_init:0000000000000000 .Loc.11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:61     .text.i2c_master_init:0000000000000004 .Loc.12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:62     .text.i2c_master_init:0000000000000004 .Loc.13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:66     .text.i2c_master_init:000000000000000a .Loc.14
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:68     .text.i2c_master_init:000000000000000c L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:74     .text.i2c_master_start:0000000000000000 i2c_master_start
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:77     .text.i2c_master_start:0000000000000000 .Loc.15
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:78     .text.i2c_master_start:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:79     .text.i2c_master_start:0000000000000000 .Loc.16
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:89     .text.i2c_master_start:0000000000000004 .Loc.17
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:90     .text.i2c_master_start:0000000000000004 .Loc.18
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:93     .text.i2c_master_start:0000000000000006 .Loc.19
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:95     .text.i2c_master_start:000000000000000a .Loc.20
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:98     .text.i2c_master_start:000000000000000e .Loc.21
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:99     .text.i2c_master_start:000000000000000e .Loc.22
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:101    .text.i2c_master_start:0000000000000012 .Loc.23
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:105    .text.i2c_master_start:0000000000000018 .Loc.24
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:107    .text.i2c_master_start:000000000000001c .Loc.25
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:112    .text.i2c_master_start:0000000000000022 .Loc.26
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:116    .text.i2c_master_start:0000000000000024 .Loc.27
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:119    .text.i2c_master_start:0000000000000026 .Loc.28
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:123    .text.i2c_master_start:0000000000000028 .Loc.29
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:124    .text.i2c_master_start:0000000000000028 .Loc.30
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:126    .text.i2c_master_start:000000000000002c .Loc.31
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:127    .text.i2c_master_start:000000000000002c .Loc.32
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:130    .text.i2c_master_start:0000000000000032 .Loc.33
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:133    .text.i2c_master_start:0000000000000036 .Loc.34
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:134    .text.i2c_master_start:0000000000000036 .Loc.35
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:136    .text.i2c_master_start:000000000000003a .Loc.36
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:140    .text.i2c_master_start:0000000000000040 .Loc.37
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:142    .text.i2c_master_start:0000000000000044 .Loc.38
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:147    .text.i2c_master_start:000000000000004a .Loc.39
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:150    .text.i2c_master_start:000000000000004e L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:156    .text.i2c_master_stop:0000000000000000 i2c_master_stop
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:158    .text.i2c_master_stop:0000000000000000 .Loc.40
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:159    .text.i2c_master_stop:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:164    .text.i2c_master_stop:0000000000000000 .Loc.41
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:165    .text.i2c_master_stop:0000000000000000 .Loc.42
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:168    .text.i2c_master_stop:0000000000000006 .Loc.43
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:170    .text.i2c_master_stop:0000000000000006 .Loc.44
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:171    .text.i2c_master_stop:0000000000000006 .Loc.45
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:176    .text.i2c_master_stop:000000000000000a .Loc.46
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:177    .text.i2c_master_stop:000000000000000a .Loc.47
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:179    .text.i2c_master_stop:000000000000000e .Loc.48
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:184    .text.i2c_master_stop:0000000000000014 .Loc.49
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:189    .text.i2c_master_stop:0000000000000016 .Loc.50
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:191    .text.i2c_master_stop:0000000000000018 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:197    .text.i2c_master_write:0000000000000000 i2c_master_write
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:200    .text.i2c_master_write:0000000000000000 .Loc.51
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:201    .text.i2c_master_write:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:206    .text.i2c_master_write:0000000000000000 .Loc.52
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:207    .text.i2c_master_write:0000000000000000 .Loc.53
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:209    .text.i2c_master_write:0000000000000004 .Loc.54
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:210    .text.i2c_master_write:0000000000000004 .Loc.55
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:213    .text.i2c_master_write:0000000000000006 .Loc.56
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:216    .text.i2c_master_write:000000000000000a .Loc.57
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:219    .text.i2c_master_write:000000000000000e .Loc.58
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:220    .text.i2c_master_write:000000000000000e .Loc.59
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:222    .text.i2c_master_write:0000000000000012 .Loc.60
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:230    .text.i2c_master_write:000000000000001c .Loc.61
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:232    .text.i2c_master_write:000000000000001e L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:238    .text.i2c_master_read:0000000000000000 i2c_master_read
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:241    .text.i2c_master_read:0000000000000000 .Loc.62
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:242    .text.i2c_master_read:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:247    .text.i2c_master_read:0000000000000000 .Loc.63
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:248    .text.i2c_master_read:0000000000000000 .Loc.64
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:256    .text.i2c_master_read:000000000000000a .Loc.65
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:258    .text.i2c_master_read:000000000000000c .Loc.66
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:260    .text.i2c_master_read:0000000000000010 .Loc.67
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:263    .text.i2c_master_read:0000000000000014 .Loc.68
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:264    .text.i2c_master_read:0000000000000014 .Loc.69
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:267    .text.i2c_master_read:0000000000000018 .Loc.70
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:269    .text.i2c_master_read:000000000000001a L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:275    .text.i2c_reset_state:0000000000000000 i2c_reset_state
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:277    .text.i2c_reset_state:0000000000000000 .Loc.71
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:278    .text.i2c_reset_state:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:283    .text.i2c_reset_state:0000000000000000 .Loc.72
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:284    .text.i2c_reset_state:0000000000000000 .Loc.73
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:287    .text.i2c_reset_state:0000000000000004 .Loc.74
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:289    .text.i2c_reset_state:0000000000000006 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:295    .text.i2c_slave_init:0000000000000000 i2c_slave_init
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:298    .text.i2c_slave_init:0000000000000000 .Loc.75
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:299    .text.i2c_slave_init:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:304    .text.i2c_slave_init:0000000000000000 .Loc.76
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:305    .text.i2c_slave_init:0000000000000000 .Loc.77
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:307    .text.i2c_slave_init:0000000000000004 .Loc.78
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:308    .text.i2c_slave_init:0000000000000004 .Loc.79
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:311    .text.i2c_slave_init:0000000000000006 .Loc.80
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:315    .text.i2c_slave_init:000000000000000a .Loc.81
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:317    .text.i2c_slave_init:000000000000000c L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:323    .text.__vector_36:0000000000000000 __vector_36
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:325    .text.__vector_36:0000000000000000 .Loc.82
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:326    .text.__vector_36:0000000000000000 L0
+                            *ABS*:0000000000000003 __gcc_isr.n_pushed.001
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:344    .text.__vector_36:0000000000000010 .Loc.83
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:346    .text.__vector_36:0000000000000010 .Loc.84
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:347    .text.__vector_36:0000000000000010 .Loc.85
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:350    .text.__vector_36:0000000000000016 .Loc.86
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:355    .text.__vector_36:0000000000000020 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:360    .text.__vector_36:0000000000000026 .Loc.87
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:364    .text.__vector_36:000000000000002a .Loc.88
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:370    .text.__vector_36:0000000000000032 .Loc.89
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:371    .text.__vector_36:0000000000000032 .Loc.90
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:484    .bss.slave_buffer_pos:0000000000000000 slave_buffer_pos
+                            *COM*:0000000000000010 i2c_slave_buffer
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:377    .text.__vector_36:000000000000003e .Loc.91
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:381    .text.__vector_36:0000000000000044 .Loc.92
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:382    .text.__vector_36:0000000000000044 .Loc.93
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:479    .bss.slave_has_register_set:0000000000000000 slave_has_register_set
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:384    .text.__vector_36:0000000000000048 .Loc.94
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:387    .text.__vector_36:000000000000004a .Loc.95
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:388    .text.__vector_36:000000000000004a .Loc.96
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:390    .text.__vector_36:000000000000004e .Loc.97
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:393    .text.__vector_36:0000000000000052 .Loc.98
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:394    .text.__vector_36:0000000000000052 .Loc.99
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:396    .text.__vector_36:0000000000000056 .Loc.100
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:398    .text.__vector_36:000000000000005a .Loc.101
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:399    .text.__vector_36:000000000000005a .Loc.102
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:401    .text.__vector_36:000000000000005e .Loc.103
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:404    .text.__vector_36:0000000000000062 .Loc.104
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:406    .text.__vector_36:0000000000000062 .Loc.105
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:407    .text.__vector_36:0000000000000062 .Loc.106
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:409    .text.__vector_36:0000000000000066 .Loc.107
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:413    .text.__vector_36:0000000000000068 .Loc.108
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:414    .text.__vector_36:0000000000000068 .Loc.109
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:419    .text.__vector_36:000000000000006e .Loc.110
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:420    .text.__vector_36:000000000000006e .Loc.111
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:422    .text.__vector_36:0000000000000072 .Loc.112
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:425    .text.__vector_36:0000000000000074 .Loc.113
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:429    .text.__vector_36:000000000000007a .Loc.114
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:434    .text.__vector_36:0000000000000082 .Loc.115
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:442    .text.__vector_36:0000000000000092 .Loc.116
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:446    .text.__vector_36:0000000000000096 .Loc.117
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:447    .text.__vector_36:0000000000000096 .Loc.118
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:450    .text.__vector_36:000000000000009c .Loc.119
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:452    .text.__vector_36:00000000000000a0 .Loc.120
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:456    .text.__vector_36:00000000000000a6 .Loc.121
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:458    .text.__vector_36:00000000000000a6 .Loc.122
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:465    .text.__vector_36:00000000000000b6 .Loc.123
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:468    .text.__vector_36:00000000000000b8 .Loc.124
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:469    .text.__vector_36:00000000000000b8 .Loc.125
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:473    .text.__vector_36:00000000000000be L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:47     .text.i2c_delay:0000000000000012 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:71     .text.i2c_master_init:000000000000000c L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:153    .text.i2c_master_start:000000000000004e L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:194    .text.i2c_master_stop:0000000000000018 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:235    .text.i2c_master_write:000000000000001e L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:272    .text.i2c_master_read:000000000000001a L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:292    .text.i2c_reset_state:0000000000000006 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:320    .text.i2c_slave_init:000000000000000c L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:476    .text.__vector_36:00000000000000be L0
+                     .debug_frame:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:40     .text.i2c_delay:0000000000000010 .L1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:28     .text.i2c_delay:0000000000000004 .L3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:122    .text.i2c_master_start:0000000000000028 .L7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:146    .text.i2c_master_start:000000000000004a .L10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:111    .text.i2c_master_start:0000000000000022 .L9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:114    .text.i2c_master_start:0000000000000024 .L6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:187    .text.i2c_master_stop:0000000000000016 .L17
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:175    .text.i2c_master_stop:000000000000000a .L19
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:228    .text.i2c_master_write:000000000000001c .L22
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:250    .text.i2c_master_read:0000000000000002 .L11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:386    .text.__vector_36:000000000000004a .L27
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:363    .text.__vector_36:000000000000002a .L28
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:467    .text.__vector_36:00000000000000b8 .L29
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:380    .text.__vector_36:0000000000000044 .L30
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:418    .text.__vector_36:000000000000006e .L31
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:369    .text.__vector_36:0000000000000032 .L32
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:359    .text.__vector_36:0000000000000026 .L42
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:457    .text.__vector_36:00000000000000a6 .L43
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:445    .text.__vector_36:0000000000000096 .L33
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:441    .text.__vector_36:0000000000000092 .L35
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:412    .text.__vector_36:0000000000000068 .L34
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:845    .debug_abbrev:0000000000000000 .Ldebug_abbrev0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1512   .debug_ranges:0000000000000000 .Ldebug_ranges0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1534   .debug_line:0000000000000000 .Ldebug_line0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:324    .text.__vector_36:0000000000000000 .LFB14
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:474    .text.__vector_36:00000000000000be .LFE14
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1237   .debug_loc:0000000000000000 .LLST7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1273   .debug_loc:0000000000000044 .LLST8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1264   .debug_loc:000000000000003c .LVUS8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:297    .text.i2c_slave_init:0000000000000000 .LFB13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:318    .text.i2c_slave_init:000000000000000c .LFE13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1302   .debug_loc:0000000000000081 .LLST6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1295   .debug_loc:000000000000007b .LVUS6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:276    .text.i2c_reset_state:0000000000000000 .LFB12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:290    .text.i2c_reset_state:0000000000000006 .LFE12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:240    .text.i2c_master_read:0000000000000000 .LFB11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:270    .text.i2c_master_read:000000000000001a .LFE11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1326   .debug_loc:00000000000000b2 .LLST5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1321   .debug_loc:00000000000000ae .LVUS5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:262    .text.i2c_master_read:0000000000000014 .LVL20
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:199    .text.i2c_master_write:0000000000000000 .LFB10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:233    .text.i2c_master_write:000000000000001e .LFE10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1352   .debug_loc:00000000000000de .LLST4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1345   .debug_loc:00000000000000d8 .LVUS4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:218    .text.i2c_master_write:000000000000000e .LVL17
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:157    .text.i2c_master_stop:0000000000000000 .LFB9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:192    .text.i2c_master_stop:0000000000000018 .LFE9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1378   .debug_loc:0000000000000111 .LLST3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1371   .debug_loc:000000000000010b .LVUS3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:76     .text.i2c_master_start:0000000000000000 .LFB8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:151    .text.i2c_master_start:000000000000004e .LFE8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1404   .debug_loc:0000000000000145 .LLST1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1428   .debug_loc:000000000000016f .LLST2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1419   .debug_loc:0000000000000167 .LVUS2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:97     .text.i2c_master_start:000000000000000e .LVL6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:132    .text.i2c_master_start:0000000000000036 .LVL9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:51     .text.i2c_master_init:0000000000000000 .LFB7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:69     .text.i2c_master_init:000000000000000c .LFE7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:13     .text.i2c_delay:0000000000000000 .LFB6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:45     .text.i2c_delay:0000000000000012 .LFE6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1457   .debug_loc:00000000000001ac .LLST0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:1450   .debug_loc:00000000000001a6 .LVUS0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:329    .text.__vector_36:000000000000000c .LCFI1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:333    .text.__vector_36:000000000000000e .LCFI2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:337    .text.__vector_36:0000000000000010 .LCFI3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:345    .text.__vector_36:0000000000000010 .LVL24
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:405    .text.__vector_36:0000000000000062 .LVL25
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:411    .text.__vector_36:0000000000000068 .LVL26
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:424    .text.__vector_36:0000000000000074 .LVL28
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:440    .text.__vector_36:0000000000000092 .LVL29
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:296    .text.i2c_slave_init:0000000000000000 .LVL21
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:310    .text.i2c_slave_init:0000000000000006 .LVL22
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:313    .text.i2c_slave_init:000000000000000a .LVL23
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:239    .text.i2c_master_read:0000000000000000 .LVL18
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:255    .text.i2c_master_read:000000000000000a .LVL19
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:198    .text.i2c_master_write:0000000000000000 .LVL14
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:212    .text.i2c_master_write:0000000000000006 .LVL15
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:215    .text.i2c_master_write:000000000000000a .LVL16
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:169    .text.i2c_master_stop:0000000000000006 .LVL10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:174    .text.i2c_master_stop:000000000000000a .LVL11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:183    .text.i2c_master_stop:0000000000000014 .LVL12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:186    .text.i2c_master_stop:0000000000000016 .LVL13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:81     .text.i2c_master_start:0000000000000002 .LCFI0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:75     .text.i2c_master_start:0000000000000000 .LVL4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:92     .text.i2c_master_start:0000000000000006 .LVL5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:118    .text.i2c_master_start:0000000000000026 .LVL7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:121    .text.i2c_master_start:0000000000000028 .LVL8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:22     .text.i2c_delay:0000000000000000 .LVL0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:27     .text.i2c_delay:0000000000000004 .LVL1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:36     .text.i2c_delay:000000000000000e .LVL2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:39     .text.i2c_delay:0000000000000010 .LVL3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccxoTBtf.s:494    .debug_info:0000000000000000 .Ldebug_info0
+
+UNDEFINED SYMBOLS
+__do_clear_bss

@@ -1,0 +1,303 @@
+   1               		.file	"rev1.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               		.section	.text.matrix_init_kb,"ax",@progbits
+  11               	.global	matrix_init_kb
+  13               	matrix_init_kb:
+  14               	.LFB122:
+  15               		.file 1 "keyboards/crkbd/rev1/rev1.c"
+   1:keyboards/crkbd/rev1/rev1.c **** /*
+   2:keyboards/crkbd/rev1/rev1.c **** Copyright 2019 @foostan
+   3:keyboards/crkbd/rev1/rev1.c **** Copyright 2020 Drashna Jaelre <@drashna>
+   4:keyboards/crkbd/rev1/rev1.c **** 
+   5:keyboards/crkbd/rev1/rev1.c **** This program is free software: you can redistribute it and/or modify
+   6:keyboards/crkbd/rev1/rev1.c **** it under the terms of the GNU General Public License as published by
+   7:keyboards/crkbd/rev1/rev1.c **** the Free Software Foundation, either version 2 of the License, or
+   8:keyboards/crkbd/rev1/rev1.c **** (at your option) any later version.
+   9:keyboards/crkbd/rev1/rev1.c **** 
+  10:keyboards/crkbd/rev1/rev1.c **** This program is distributed in the hope that it will be useful,
+  11:keyboards/crkbd/rev1/rev1.c **** but WITHOUT ANY WARRANTY; without even the implied warranty of
+  12:keyboards/crkbd/rev1/rev1.c **** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  13:keyboards/crkbd/rev1/rev1.c **** GNU General Public License for more details.
+  14:keyboards/crkbd/rev1/rev1.c **** 
+  15:keyboards/crkbd/rev1/rev1.c **** You should have received a copy of the GNU General Public License
+  16:keyboards/crkbd/rev1/rev1.c **** along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  17:keyboards/crkbd/rev1/rev1.c **** */
+  18:keyboards/crkbd/rev1/rev1.c **** #include "rev1.h"
+  19:keyboards/crkbd/rev1/rev1.c **** 
+  20:keyboards/crkbd/rev1/rev1.c **** #ifdef RGB_MATRIX_ENABLE
+  21:keyboards/crkbd/rev1/rev1.c **** 
+  22:keyboards/crkbd/rev1/rev1.c ****   // Logical Layout
+  23:keyboards/crkbd/rev1/rev1.c ****   // Columns
+  24:keyboards/crkbd/rev1/rev1.c ****   // Left
+  25:keyboards/crkbd/rev1/rev1.c ****   // 0  1  2  3  4  5
+  26:keyboards/crkbd/rev1/rev1.c ****   //                   ROWS
+  27:keyboards/crkbd/rev1/rev1.c ****   // 25 24 19 18 11 10   0
+  28:keyboards/crkbd/rev1/rev1.c ****   //    03    02    01
+  29:keyboards/crkbd/rev1/rev1.c ****   // 26 23 20 17 12 09   1
+  30:keyboards/crkbd/rev1/rev1.c ****   //    04    05    06
+  31:keyboards/crkbd/rev1/rev1.c ****   // 27 22 21 16 13 08   2
+  32:keyboards/crkbd/rev1/rev1.c ****   //
+  33:keyboards/crkbd/rev1/rev1.c ****   //          15 14 07   3
+  34:keyboards/crkbd/rev1/rev1.c ****   //
+  35:keyboards/crkbd/rev1/rev1.c ****   // Right
+  36:keyboards/crkbd/rev1/rev1.c ****   // 0  1  2  3  4  5
+  37:keyboards/crkbd/rev1/rev1.c ****   //                    ROWS
+  38:keyboards/crkbd/rev1/rev1.c ****   // 25 24 19 18 11 10   4
+  39:keyboards/crkbd/rev1/rev1.c ****   //    03    02    01
+  40:keyboards/crkbd/rev1/rev1.c ****   // 26 23 20 17 12 09   5
+  41:keyboards/crkbd/rev1/rev1.c ****   //    04    05    06
+  42:keyboards/crkbd/rev1/rev1.c ****   // 27 22 21 16 13 08   6
+  43:keyboards/crkbd/rev1/rev1.c ****   //
+  44:keyboards/crkbd/rev1/rev1.c ****   //          15 14 07   7
+  45:keyboards/crkbd/rev1/rev1.c ****   //
+  46:keyboards/crkbd/rev1/rev1.c ****   // Physical Layout
+  47:keyboards/crkbd/rev1/rev1.c ****   // Columns
+  48:keyboards/crkbd/rev1/rev1.c ****   // 0  1  2  3  4  5  6  7  8  9  10 11 12 13
+  49:keyboards/crkbd/rev1/rev1.c ****   //                                           ROWS
+  50:keyboards/crkbd/rev1/rev1.c ****   // 25 24 19 18 11 10       10 11 18 19 24 25  0
+  51:keyboards/crkbd/rev1/rev1.c ****   //    03    02    01       01    02    03
+  52:keyboards/crkbd/rev1/rev1.c ****   // 26 23 20 17 12 09       09 12 17 20 23 26  1
+  53:keyboards/crkbd/rev1/rev1.c ****   //    04                               04
+  54:keyboards/crkbd/rev1/rev1.c ****   // 27 22 21 16 13 08       08 13 16 21 22 27  2
+  55:keyboards/crkbd/rev1/rev1.c ****   //          05    06       06    05
+  56:keyboards/crkbd/rev1/rev1.c ****   //           15 14 07     07 14 15              3
+  57:keyboards/crkbd/rev1/rev1.c **** 
+  58:keyboards/crkbd/rev1/rev1.c **** led_config_t g_led_config = { {
+  59:keyboards/crkbd/rev1/rev1.c ****     {  24,  23,  18,  17,  10,   9 },
+  60:keyboards/crkbd/rev1/rev1.c ****     {  25,  22,  19,  16,  11,   8 },
+  61:keyboards/crkbd/rev1/rev1.c ****     {  26,  21,  20,  15,  12,   7 },
+  62:keyboards/crkbd/rev1/rev1.c ****     { NO_LED, NO_LED, NO_LED,  14,  13,   6 },
+  63:keyboards/crkbd/rev1/rev1.c ****     {  51,  50,  45,  44,  37,  36 },
+  64:keyboards/crkbd/rev1/rev1.c ****     {  52,  49,  46,  43,  38,  35 },
+  65:keyboards/crkbd/rev1/rev1.c ****     {  53,  48,  47,  42,  39,  34 },
+  66:keyboards/crkbd/rev1/rev1.c ****     { NO_LED, NO_LED, NO_LED,  41,  40,  33 }
+  67:keyboards/crkbd/rev1/rev1.c **** }, {
+  68:keyboards/crkbd/rev1/rev1.c ****     {  85,  16 }, {  50,  13 }, {  16,  20 }, {  16,  38 }, {  50,  48 }, {  85,  52 }, {  95,  63 
+  69:keyboards/crkbd/rev1/rev1.c ****     {  85,  39 }, {  85,  21 }, {  85,   4 }, {  68,   2 }, {  68,  19 }, {  68,  37 }, {  80,  58 
+  70:keyboards/crkbd/rev1/rev1.c ****     {  60,  55 }, {  50,  35 }, {  50,  13 }, {  50,   0 }, {  33,   3 }, {  33,  20 }, {  33,  37 
+  71:keyboards/crkbd/rev1/rev1.c ****     {  16,  42 }, {  16,  24 }, {  16,   7 }, {   0,   7 }, {   0,  24 }, {   0,  41 }, { 139,  16 
+  72:keyboards/crkbd/rev1/rev1.c ****     { 174,  13 }, { 208,  20 }, { 208,  38 }, { 174,  48 }, { 139,  52 }, { 129,  63 }, { 139,  39 
+  73:keyboards/crkbd/rev1/rev1.c ****     { 139,  21 }, { 139,   4 }, { 156,   2 }, { 156,  19 }, { 156,  37 }, { 144,  58 }, { 164,  55 
+  74:keyboards/crkbd/rev1/rev1.c ****     { 174,  35 }, { 174,  13 }, { 174,   0 }, { 191,   3 }, { 191,  20 }, { 191,  37 }, { 208,  42 
+  75:keyboards/crkbd/rev1/rev1.c ****     { 208,  24 }, { 208,   7 }, { 224,   7 }, { 224,  24 }, { 224,  41 }
+  76:keyboards/crkbd/rev1/rev1.c **** }, {
+  77:keyboards/crkbd/rev1/rev1.c ****     2, 2, 2, 2, 2, 2, 1,
+  78:keyboards/crkbd/rev1/rev1.c ****     4, 4, 4, 4, 4, 4, 1,
+  79:keyboards/crkbd/rev1/rev1.c ****     1, 4, 4, 4, 4, 4, 4,
+  80:keyboards/crkbd/rev1/rev1.c ****     4, 4, 4, 1, 1, 1, 2,
+  81:keyboards/crkbd/rev1/rev1.c ****     2, 2, 2, 2, 2, 1, 4,
+  82:keyboards/crkbd/rev1/rev1.c ****     4, 4, 4, 4, 4, 1, 1,
+  83:keyboards/crkbd/rev1/rev1.c ****     4, 4, 4, 4, 4, 4, 4,
+  84:keyboards/crkbd/rev1/rev1.c ****     4, 4, 1, 1, 1
+  85:keyboards/crkbd/rev1/rev1.c **** } };
+  86:keyboards/crkbd/rev1/rev1.c **** #endif
+  87:keyboards/crkbd/rev1/rev1.c **** 
+  88:keyboards/crkbd/rev1/rev1.c **** void matrix_init_kb(void) {
+  16               		.loc 1 88 27 view -0
+  17               		.cfi_startproc
+  18               	/* prologue: function */
+  19               	/* frame size = 0 */
+  20               	/* stack size = 0 */
+  21               	.L__stack_usage = 0
+  89:keyboards/crkbd/rev1/rev1.c **** 
+  90:keyboards/crkbd/rev1/rev1.c **** #ifdef RGB_MATRIX_ENABLE
+  91:keyboards/crkbd/rev1/rev1.c ****     if (!isLeftHand) {
+  92:keyboards/crkbd/rev1/rev1.c ****         g_led_config = (led_config_t){ {
+  93:keyboards/crkbd/rev1/rev1.c ****             {  51,  50,  45,  44,  37,  36 },
+  94:keyboards/crkbd/rev1/rev1.c ****             {  52,  49,  46,  43,  38,  35 },
+  95:keyboards/crkbd/rev1/rev1.c ****             {  53,  48,  47,  42,  39,  34 },
+  96:keyboards/crkbd/rev1/rev1.c ****             { NO_LED, NO_LED, NO_LED,  41,  40,  33 },
+  97:keyboards/crkbd/rev1/rev1.c ****             {  24,  23,  18,  17,  10,   9 },
+  98:keyboards/crkbd/rev1/rev1.c ****             {  25,  22,  19,  16,  11,   8 },
+  99:keyboards/crkbd/rev1/rev1.c ****             {  26,  21,  20,  15,  12,   7 },
+ 100:keyboards/crkbd/rev1/rev1.c ****             { NO_LED, NO_LED, NO_LED,  14,  13,   6 }
+ 101:keyboards/crkbd/rev1/rev1.c ****         }, {
+ 102:keyboards/crkbd/rev1/rev1.c ****             { 139,  16 }, { 174,  13 }, { 208,  20 }, { 208,  38 }, { 174,  48 }, { 139,  52 }, { 1
+ 103:keyboards/crkbd/rev1/rev1.c ****             { 139,  39 }, { 139,  21 }, { 139,   4 }, { 156,   2 }, { 156,  19 }, { 156,  37 }, { 1
+ 104:keyboards/crkbd/rev1/rev1.c ****             { 164,  55 }, { 174,  35 }, { 174,  13 }, { 174,   0 }, { 191,   3 }, { 191,  20 }, { 1
+ 105:keyboards/crkbd/rev1/rev1.c ****             { 208,  42 }, { 208,  24 }, { 208,   7 }, { 224,   7 }, { 224,  24 }, { 224,  41 }, {  
+ 106:keyboards/crkbd/rev1/rev1.c ****             {  50,  13 }, {  16,  20 }, {  16,  38 }, {  50,  48 }, {  85,  52 }, {  95,  63 }, {  
+ 107:keyboards/crkbd/rev1/rev1.c ****             {  85,  21 }, {  85,   4 }, {  68,   2 }, {  68,  19 }, {  68,  37 }, {  80,  58 }, {  
+ 108:keyboards/crkbd/rev1/rev1.c ****             {  50,  35 }, {  50,  13 }, {  50,   0 }, {  33,   3 }, {  33,  20 }, {  33,  37 }, {  
+ 109:keyboards/crkbd/rev1/rev1.c ****             {  16,  24 }, {  16,   7 }, {   0,   7 }, {   0,  24 }, {   0,  41 }
+ 110:keyboards/crkbd/rev1/rev1.c ****         }, {
+ 111:keyboards/crkbd/rev1/rev1.c ****             2, 2, 2, 2, 2, 2, 1,
+ 112:keyboards/crkbd/rev1/rev1.c ****             4, 4, 4, 4, 4, 4, 1,
+ 113:keyboards/crkbd/rev1/rev1.c ****             1, 4, 4, 4, 4, 4, 4,
+ 114:keyboards/crkbd/rev1/rev1.c ****             4, 4, 4, 1, 1, 1, 2,
+ 115:keyboards/crkbd/rev1/rev1.c ****             2, 2, 2, 2, 2, 1, 4,
+ 116:keyboards/crkbd/rev1/rev1.c ****             4, 4, 4, 4, 4, 1, 1,
+ 117:keyboards/crkbd/rev1/rev1.c ****             4, 4, 4, 4, 4, 4, 4,
+ 118:keyboards/crkbd/rev1/rev1.c ****             4, 4, 1, 1, 1
+ 119:keyboards/crkbd/rev1/rev1.c ****         } };
+ 120:keyboards/crkbd/rev1/rev1.c ****     }
+ 121:keyboards/crkbd/rev1/rev1.c **** #endif
+ 122:keyboards/crkbd/rev1/rev1.c ****     matrix_init_user();
+  22               		.loc 1 122 5 view .LVU1
+  23 0000 0C94 0000 		jmp matrix_init_user
+  24               	.LVL0:
+  25               		.cfi_endproc
+  26               	.LFE122:
+  28               		.section	.text.process_record_kb,"ax",@progbits
+  29               	.global	process_record_kb
+  31               	process_record_kb:
+  32               	.LVL1:
+  33               	.LFB123:
+ 123:keyboards/crkbd/rev1/rev1.c **** }
+ 124:keyboards/crkbd/rev1/rev1.c **** 
+ 125:keyboards/crkbd/rev1/rev1.c **** #ifdef SSD1306OLED
+ 126:keyboards/crkbd/rev1/rev1.c **** bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
+  34               		.loc 1 126 63 view -0
+  35               		.cfi_startproc
+  36               		.loc 1 126 63 is_stmt 0 view .LVU3
+  37 0000 0F93      		push r16
+  38               	.LCFI0:
+  39               		.cfi_def_cfa_offset 3
+  40               		.cfi_offset 16, -2
+  41 0002 1F93      		push r17
+  42               	.LCFI1:
+  43               		.cfi_def_cfa_offset 4
+  44               		.cfi_offset 17, -3
+  45 0004 CF93      		push r28
+  46               	.LCFI2:
+  47               		.cfi_def_cfa_offset 5
+  48               		.cfi_offset 28, -4
+  49 0006 DF93      		push r29
+  50               	.LCFI3:
+  51               		.cfi_def_cfa_offset 6
+  52               		.cfi_offset 29, -5
+  53               	/* prologue: function */
+  54               	/* frame size = 0 */
+  55               	/* stack size = 4 */
+  56               	.L__stack_usage = 4
+  57 0008 EC01      		movw r28,r24
+  58 000a 8B01      		movw r16,r22
+ 127:keyboards/crkbd/rev1/rev1.c ****   return process_record_gfx(keycode,record) && process_record_user(keycode, record);
+  59               		.loc 1 127 3 is_stmt 1 view .LVU4
+  60               		.loc 1 127 10 is_stmt 0 view .LVU5
+  61 000c 0E94 0000 		call process_record_gfx
+  62               	.LVL2:
+  63               		.loc 1 127 45 view .LVU6
+  64 0010 8823      		tst r24
+  65 0012 01F0      		breq .L4
+  66               		.loc 1 127 48 discriminator 1 view .LVU7
+  67 0014 B801      		movw r22,r16
+  68 0016 CE01      		movw r24,r28
+  69 0018 0E94 0000 		call process_record_user
+  70               	.LVL3:
+  71               	.L3:
+ 128:keyboards/crkbd/rev1/rev1.c **** }
+  72               		.loc 1 128 1 discriminator 6 view .LVU8
+  73 001c 8170      		andi r24,lo8(1)
+  74               	/* epilogue start */
+  75 001e DF91      		pop r29
+  76 0020 CF91      		pop r28
+  77               	.LVL4:
+  78               		.loc 1 128 1 discriminator 6 view .LVU9
+  79 0022 1F91      		pop r17
+  80 0024 0F91      		pop r16
+  81               	.LVL5:
+  82               		.loc 1 128 1 discriminator 6 view .LVU10
+  83 0026 0895      		ret
+  84               	.LVL6:
+  85               	.L4:
+ 127:keyboards/crkbd/rev1/rev1.c ****   return process_record_gfx(keycode,record) && process_record_user(keycode, record);
+  86               		.loc 1 127 45 view .LVU11
+  87 0028 80E0      		ldi r24,0
+  88 002a 00C0      		rjmp .L3
+  89               		.cfi_endproc
+  90               	.LFE123:
+  92               		.text
+  93               	.Letext0:
+  94               		.file 2 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdint.h"
+  95               		.file 3 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/lib/avr-gcc/8/gcc/avr/8.4.0/include/stddef.h"
+  96               		.file 4 "tmk_core/common/keyboard.h"
+  97               		.file 5 "tmk_core/common/action.h"
+  98               		.file 6 "tmk_core/common/report.h"
+  99               		.file 7 "tmk_core/common/host_driver.h"
+ 100               		.file 8 "tmk_core/common/host.h"
+ 101               		.file 9 "tmk_core/common/debug.h"
+ 102               		.file 10 "quantum/keycode_config.h"
+ 103               		.file 11 "quantum/keymap.h"
+ 104               		.file 12 "./quantum/color.h"
+ 105               		.file 13 "quantum/rgblight.h"
+ 106               		.file 14 "tmk_core/common/action_layer.h"
+ 107               		.file 15 "tmk_core/common/timer.h"
+ 108               		.file 16 "tmk_core/common/action_util.h"
+ 109               		.file 17 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdlib.h"
+ 110               		.file 18 "quantum/quantum.h"
+ 111               		.file 19 "keyboards/crkbd/rev1/legacy/legacy.h"
+ 112               		.file 20 "keyboards/crkbd/rev1/legacy/split_util.h"
+ 113               		.file 21 "lib/lufa/LUFA/Drivers/USB/Core/AVR8/../StdRequestType.h"
+ 114               		.file 22 "lib/lufa/LUFA/Drivers/USB/Core/AVR8/../DeviceStandardReq.h"
+ 115               		.file 23 "lib/lufa/LUFA/Drivers/USB/Core/USBTask.h"
+ 116               		.file 24 "lib/lufa/LUFA/Drivers/USB/Core/HostStandardReq.h"
+ 117               		.file 25 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdio.h"
+ 118               		.file 26 "tmk_core/protocol/lufa/lufa.h"
+ 119               		.file 27 "keyboards/crkbd/rev1/legacy/ssd1306.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 rev1.c
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:13     .text.matrix_init_kb:0000000000000000 matrix_init_kb
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:16     .text.matrix_init_kb:0000000000000000 .Loc.0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:17     .text.matrix_init_kb:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:22     .text.matrix_init_kb:0000000000000000 .Loc.1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:25     .text.matrix_init_kb:0000000000000004 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:31     .text.process_record_kb:0000000000000000 process_record_kb
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:34     .text.process_record_kb:0000000000000000 .Loc.2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:35     .text.process_record_kb:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:36     .text.process_record_kb:0000000000000000 .Loc.3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:59     .text.process_record_kb:000000000000000c .Loc.4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:60     .text.process_record_kb:000000000000000c .Loc.5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:63     .text.process_record_kb:0000000000000010 .Loc.6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:66     .text.process_record_kb:0000000000000014 .Loc.7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:72     .text.process_record_kb:000000000000001c .Loc.8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:78     .text.process_record_kb:0000000000000022 .Loc.9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:82     .text.process_record_kb:0000000000000026 .Loc.10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:86     .text.process_record_kb:0000000000000028 .Loc.11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:89     .text.process_record_kb:000000000000002c L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:28     .text.matrix_init_kb:0000000000000004 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:92     .text.process_record_kb:000000000000002c L0
+                     .debug_frame:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:85     .text.process_record_kb:0000000000000028 .L4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:71     .text.process_record_kb:000000000000001c .L3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:1783   .debug_abbrev:0000000000000000 .Ldebug_abbrev0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:2545   .debug_ranges:0000000000000000 .Ldebug_ranges0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:2553   .debug_line:0000000000000000 .Ldebug_line0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:33     .text.process_record_kb:0000000000000000 .LFB123
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:90     .text.process_record_kb:000000000000002c .LFE123
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:2405   .debug_loc:0000000000000000 .LLST0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:2447   .debug_loc:0000000000000051 .LLST1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:2438   .debug_loc:0000000000000049 .LVUS1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:2493   .debug_loc:000000000000009f .LLST2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:2484   .debug_loc:0000000000000097 .LVUS2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:62     .text.process_record_kb:0000000000000010 .LVL2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:70     .text.process_record_kb:000000000000001c .LVL3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:14     .text.matrix_init_kb:0000000000000000 .LFB122
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:26     .text.matrix_init_kb:0000000000000004 .LFE122
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:24     .text.matrix_init_kb:0000000000000004 .LVL0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:38     .text.process_record_kb:0000000000000002 .LCFI0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:42     .text.process_record_kb:0000000000000004 .LCFI1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:46     .text.process_record_kb:0000000000000006 .LCFI2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:50     .text.process_record_kb:0000000000000008 .LCFI3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:32     .text.process_record_kb:0000000000000000 .LVL1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:77     .text.process_record_kb:0000000000000022 .LVL4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:84     .text.process_record_kb:0000000000000028 .LVL6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:81     .text.process_record_kb:0000000000000026 .LVL5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//cc8jfiVx.s:121    .debug_info:0000000000000000 .Ldebug_info0
+
+UNDEFINED SYMBOLS
+matrix_init_user
+process_record_gfx
+process_record_user

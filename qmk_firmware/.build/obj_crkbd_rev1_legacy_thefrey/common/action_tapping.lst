@@ -1,0 +1,2754 @@
+   1               		.file	"action_tapping.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               		.section	.text.debug_waiting_buffer,"ax",@progbits
+  12               	debug_waiting_buffer:
+  13               	.LFB13:
+  14               		.file 1 "tmk_core/common/action_tapping.c"
+   1:tmk_core/common/action_tapping.c **** #include <stdint.h>
+   2:tmk_core/common/action_tapping.c **** #include <stdbool.h>
+   3:tmk_core/common/action_tapping.c **** #include "action.h"
+   4:tmk_core/common/action_tapping.c **** #include "action_layer.h"
+   5:tmk_core/common/action_tapping.c **** #include "action_tapping.h"
+   6:tmk_core/common/action_tapping.c **** #include "keycode.h"
+   7:tmk_core/common/action_tapping.c **** #include "timer.h"
+   8:tmk_core/common/action_tapping.c **** 
+   9:tmk_core/common/action_tapping.c **** #ifdef DEBUG_ACTION
+  10:tmk_core/common/action_tapping.c **** #    include "debug.h"
+  11:tmk_core/common/action_tapping.c **** #else
+  12:tmk_core/common/action_tapping.c **** #    include "nodebug.h"
+  13:tmk_core/common/action_tapping.c **** #endif
+  14:tmk_core/common/action_tapping.c **** 
+  15:tmk_core/common/action_tapping.c **** #ifndef NO_ACTION_TAPPING
+  16:tmk_core/common/action_tapping.c **** 
+  17:tmk_core/common/action_tapping.c **** #    define IS_TAPPING() !IS_NOEVENT(tapping_key.event)
+  18:tmk_core/common/action_tapping.c **** #    define IS_TAPPING_PRESSED() (IS_TAPPING() && tapping_key.event.pressed)
+  19:tmk_core/common/action_tapping.c **** #    define IS_TAPPING_RELEASED() (IS_TAPPING() && !tapping_key.event.pressed)
+  20:tmk_core/common/action_tapping.c **** #    define IS_TAPPING_KEY(k) (IS_TAPPING() && KEYEQ(tapping_key.event.key, (k)))
+  21:tmk_core/common/action_tapping.c **** 
+  22:tmk_core/common/action_tapping.c **** __attribute__((weak)) uint16_t get_tapping_term(uint16_t keycode, keyrecord_t *record) { return TAP
+  23:tmk_core/common/action_tapping.c **** 
+  24:tmk_core/common/action_tapping.c **** #    ifdef TAPPING_TERM_PER_KEY
+  25:tmk_core/common/action_tapping.c **** #        define WITHIN_TAPPING_TERM(e) (TIMER_DIFF_16(e.time, tapping_key.event.time) < get_tapping
+  26:tmk_core/common/action_tapping.c **** #    else
+  27:tmk_core/common/action_tapping.c **** #        define WITHIN_TAPPING_TERM(e) (TIMER_DIFF_16(e.time, tapping_key.event.time) < TAPPING_TER
+  28:tmk_core/common/action_tapping.c **** #    endif
+  29:tmk_core/common/action_tapping.c **** 
+  30:tmk_core/common/action_tapping.c **** #    ifdef TAPPING_FORCE_HOLD_PER_KEY
+  31:tmk_core/common/action_tapping.c **** __attribute__((weak)) bool get_tapping_force_hold(uint16_t keycode, keyrecord_t *record) { return f
+  32:tmk_core/common/action_tapping.c **** #    endif
+  33:tmk_core/common/action_tapping.c **** 
+  34:tmk_core/common/action_tapping.c **** #    ifdef PERMISSIVE_HOLD_PER_KEY
+  35:tmk_core/common/action_tapping.c **** __attribute__((weak)) bool get_permissive_hold(uint16_t keycode, keyrecord_t *record) { return fals
+  36:tmk_core/common/action_tapping.c **** #    endif
+  37:tmk_core/common/action_tapping.c **** 
+  38:tmk_core/common/action_tapping.c **** static keyrecord_t tapping_key                         = {};
+  39:tmk_core/common/action_tapping.c **** static keyrecord_t waiting_buffer[WAITING_BUFFER_SIZE] = {};
+  40:tmk_core/common/action_tapping.c **** static uint8_t     waiting_buffer_head                 = 0;
+  41:tmk_core/common/action_tapping.c **** static uint8_t     waiting_buffer_tail                 = 0;
+  42:tmk_core/common/action_tapping.c **** 
+  43:tmk_core/common/action_tapping.c **** static bool process_tapping(keyrecord_t *record);
+  44:tmk_core/common/action_tapping.c **** static bool waiting_buffer_enq(keyrecord_t record);
+  45:tmk_core/common/action_tapping.c **** static void waiting_buffer_clear(void);
+  46:tmk_core/common/action_tapping.c **** static bool waiting_buffer_typed(keyevent_t event);
+  47:tmk_core/common/action_tapping.c **** static bool waiting_buffer_has_anykey_pressed(void);
+  48:tmk_core/common/action_tapping.c **** static void waiting_buffer_scan_tap(void);
+  49:tmk_core/common/action_tapping.c **** static void debug_tapping_key(void);
+  50:tmk_core/common/action_tapping.c **** static void debug_waiting_buffer(void);
+  51:tmk_core/common/action_tapping.c **** 
+  52:tmk_core/common/action_tapping.c **** /** \brief Action Tapping Process
+  53:tmk_core/common/action_tapping.c ****  *
+  54:tmk_core/common/action_tapping.c ****  * FIXME: Needs doc
+  55:tmk_core/common/action_tapping.c ****  */
+  56:tmk_core/common/action_tapping.c **** void action_tapping_process(keyrecord_t record) {
+  57:tmk_core/common/action_tapping.c ****     if (process_tapping(&record)) {
+  58:tmk_core/common/action_tapping.c ****         if (!IS_NOEVENT(record.event)) {
+  59:tmk_core/common/action_tapping.c ****             debug("processed: ");
+  60:tmk_core/common/action_tapping.c ****             debug_record(record);
+  61:tmk_core/common/action_tapping.c ****             debug("\n");
+  62:tmk_core/common/action_tapping.c ****         }
+  63:tmk_core/common/action_tapping.c ****     } else {
+  64:tmk_core/common/action_tapping.c ****         if (!waiting_buffer_enq(record)) {
+  65:tmk_core/common/action_tapping.c ****             // clear all in case of overflow.
+  66:tmk_core/common/action_tapping.c ****             debug("OVERFLOW: CLEAR ALL STATES\n");
+  67:tmk_core/common/action_tapping.c ****             clear_keyboard();
+  68:tmk_core/common/action_tapping.c ****             waiting_buffer_clear();
+  69:tmk_core/common/action_tapping.c ****             tapping_key = (keyrecord_t){};
+  70:tmk_core/common/action_tapping.c ****         }
+  71:tmk_core/common/action_tapping.c ****     }
+  72:tmk_core/common/action_tapping.c **** 
+  73:tmk_core/common/action_tapping.c ****     // process waiting_buffer
+  74:tmk_core/common/action_tapping.c ****     if (!IS_NOEVENT(record.event) && waiting_buffer_head != waiting_buffer_tail) {
+  75:tmk_core/common/action_tapping.c ****         debug("---- action_exec: process waiting_buffer -----\n");
+  76:tmk_core/common/action_tapping.c ****     }
+  77:tmk_core/common/action_tapping.c ****     for (; waiting_buffer_tail != waiting_buffer_head; waiting_buffer_tail = (waiting_buffer_tail +
+  78:tmk_core/common/action_tapping.c ****         if (process_tapping(&waiting_buffer[waiting_buffer_tail])) {
+  79:tmk_core/common/action_tapping.c ****             debug("processed: waiting_buffer[");
+  80:tmk_core/common/action_tapping.c ****             debug_dec(waiting_buffer_tail);
+  81:tmk_core/common/action_tapping.c ****             debug("] = ");
+  82:tmk_core/common/action_tapping.c ****             debug_record(waiting_buffer[waiting_buffer_tail]);
+  83:tmk_core/common/action_tapping.c ****             debug("\n\n");
+  84:tmk_core/common/action_tapping.c ****         } else {
+  85:tmk_core/common/action_tapping.c ****             break;
+  86:tmk_core/common/action_tapping.c ****         }
+  87:tmk_core/common/action_tapping.c ****     }
+  88:tmk_core/common/action_tapping.c ****     if (!IS_NOEVENT(record.event)) {
+  89:tmk_core/common/action_tapping.c ****         debug("\n");
+  90:tmk_core/common/action_tapping.c ****     }
+  91:tmk_core/common/action_tapping.c **** }
+  92:tmk_core/common/action_tapping.c **** 
+  93:tmk_core/common/action_tapping.c **** /** \brief Tapping
+  94:tmk_core/common/action_tapping.c ****  *
+  95:tmk_core/common/action_tapping.c ****  * Rule: Tap key is typed(pressed and released) within TAPPING_TERM.
+  96:tmk_core/common/action_tapping.c ****  *       (without interfering by typing other key)
+  97:tmk_core/common/action_tapping.c ****  */
+  98:tmk_core/common/action_tapping.c **** /* return true when key event is processed or consumed. */
+  99:tmk_core/common/action_tapping.c **** bool process_tapping(keyrecord_t *keyp) {
+ 100:tmk_core/common/action_tapping.c ****     keyevent_t event = keyp->event;
+ 101:tmk_core/common/action_tapping.c **** 
+ 102:tmk_core/common/action_tapping.c ****     // if tapping
+ 103:tmk_core/common/action_tapping.c ****     if (IS_TAPPING_PRESSED()) {
+ 104:tmk_core/common/action_tapping.c ****         if (WITHIN_TAPPING_TERM(event)) {
+ 105:tmk_core/common/action_tapping.c ****             if (tapping_key.tap.count == 0) {
+ 106:tmk_core/common/action_tapping.c ****                 if (IS_TAPPING_KEY(event.key) && !event.pressed) {
+ 107:tmk_core/common/action_tapping.c ****                     // first tap!
+ 108:tmk_core/common/action_tapping.c ****                     debug("Tapping: First tap(0->1).\n");
+ 109:tmk_core/common/action_tapping.c ****                     tapping_key.tap.count = 1;
+ 110:tmk_core/common/action_tapping.c ****                     debug_tapping_key();
+ 111:tmk_core/common/action_tapping.c ****                     process_record(&tapping_key);
+ 112:tmk_core/common/action_tapping.c **** 
+ 113:tmk_core/common/action_tapping.c ****                     // copy tapping state
+ 114:tmk_core/common/action_tapping.c ****                     keyp->tap = tapping_key.tap;
+ 115:tmk_core/common/action_tapping.c ****                     // enqueue
+ 116:tmk_core/common/action_tapping.c ****                     return false;
+ 117:tmk_core/common/action_tapping.c ****                 }
+ 118:tmk_core/common/action_tapping.c ****                 /* Process a key typed within TAPPING_TERM
+ 119:tmk_core/common/action_tapping.c ****                  * This can register the key before settlement of tapping,
+ 120:tmk_core/common/action_tapping.c ****                  * useful for long TAPPING_TERM but may prevent fast typing.
+ 121:tmk_core/common/action_tapping.c ****                  */
+ 122:tmk_core/common/action_tapping.c **** #    if defined(TAPPING_TERM_PER_KEY) || (TAPPING_TERM >= 500) || defined(PERMISSIVE_HOLD) || defin
+ 123:tmk_core/common/action_tapping.c ****                 else if (
+ 124:tmk_core/common/action_tapping.c **** #        ifdef TAPPING_TERM_PER_KEY
+ 125:tmk_core/common/action_tapping.c ****                     (get_tapping_term(get_event_keycode(tapping_key.event, false), keyp) >= 500) &&
+ 126:tmk_core/common/action_tapping.c **** #        endif
+ 127:tmk_core/common/action_tapping.c **** #        ifdef PERMISSIVE_HOLD_PER_KEY
+ 128:tmk_core/common/action_tapping.c ****                     !get_permissive_hold(get_event_keycode(tapping_key.event, false), keyp) &&
+ 129:tmk_core/common/action_tapping.c **** #        endif
+ 130:tmk_core/common/action_tapping.c ****                     IS_RELEASED(event) && waiting_buffer_typed(event)) {
+ 131:tmk_core/common/action_tapping.c ****                     debug("Tapping: End. No tap. Interfered by typing key\n");
+ 132:tmk_core/common/action_tapping.c ****                     process_record(&tapping_key);
+ 133:tmk_core/common/action_tapping.c ****                     tapping_key = (keyrecord_t){};
+ 134:tmk_core/common/action_tapping.c ****                     debug_tapping_key();
+ 135:tmk_core/common/action_tapping.c ****                     // enqueue
+ 136:tmk_core/common/action_tapping.c ****                     return false;
+ 137:tmk_core/common/action_tapping.c ****                 }
+ 138:tmk_core/common/action_tapping.c **** #    endif
+ 139:tmk_core/common/action_tapping.c ****                 /* Process release event of a key pressed before tapping starts
+ 140:tmk_core/common/action_tapping.c ****                  * Without this unexpected repeating will occur with having fast repeating setting
+ 141:tmk_core/common/action_tapping.c ****                  * https://github.com/tmk/tmk_keyboard/issues/60
+ 142:tmk_core/common/action_tapping.c ****                  */
+ 143:tmk_core/common/action_tapping.c ****                 else if (IS_RELEASED(event) && !waiting_buffer_typed(event)) {
+ 144:tmk_core/common/action_tapping.c ****                     // Modifier should be retained till end of this tapping.
+ 145:tmk_core/common/action_tapping.c ****                     action_t action = layer_switch_get_action(event.key);
+ 146:tmk_core/common/action_tapping.c ****                     switch (action.kind.id) {
+ 147:tmk_core/common/action_tapping.c ****                         case ACT_LMODS:
+ 148:tmk_core/common/action_tapping.c ****                         case ACT_RMODS:
+ 149:tmk_core/common/action_tapping.c ****                             if (action.key.mods && !action.key.code) return false;
+ 150:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 151:tmk_core/common/action_tapping.c ****                             break;
+ 152:tmk_core/common/action_tapping.c ****                         case ACT_LMODS_TAP:
+ 153:tmk_core/common/action_tapping.c ****                         case ACT_RMODS_TAP:
+ 154:tmk_core/common/action_tapping.c ****                             if (action.key.mods && keyp->tap.count == 0) return false;
+ 155:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 156:tmk_core/common/action_tapping.c ****                             break;
+ 157:tmk_core/common/action_tapping.c ****                     }
+ 158:tmk_core/common/action_tapping.c ****                     // Release of key should be process immediately.
+ 159:tmk_core/common/action_tapping.c ****                     debug("Tapping: release event of a key pressed before tapping\n");
+ 160:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 161:tmk_core/common/action_tapping.c ****                     return true;
+ 162:tmk_core/common/action_tapping.c ****                 } else {
+ 163:tmk_core/common/action_tapping.c ****                     // set interrupted flag when other key preesed during tapping
+ 164:tmk_core/common/action_tapping.c ****                     if (event.pressed) {
+ 165:tmk_core/common/action_tapping.c ****                         tapping_key.tap.interrupted = true;
+ 166:tmk_core/common/action_tapping.c ****                     }
+ 167:tmk_core/common/action_tapping.c ****                     // enqueue
+ 168:tmk_core/common/action_tapping.c ****                     return false;
+ 169:tmk_core/common/action_tapping.c ****                 }
+ 170:tmk_core/common/action_tapping.c ****             }
+ 171:tmk_core/common/action_tapping.c ****             // tap_count > 0
+ 172:tmk_core/common/action_tapping.c ****             else {
+ 173:tmk_core/common/action_tapping.c ****                 if (IS_TAPPING_KEY(event.key) && !event.pressed) {
+ 174:tmk_core/common/action_tapping.c ****                     debug("Tapping: Tap release(");
+ 175:tmk_core/common/action_tapping.c ****                     debug_dec(tapping_key.tap.count);
+ 176:tmk_core/common/action_tapping.c ****                     debug(")\n");
+ 177:tmk_core/common/action_tapping.c ****                     keyp->tap = tapping_key.tap;
+ 178:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 179:tmk_core/common/action_tapping.c ****                     tapping_key = *keyp;
+ 180:tmk_core/common/action_tapping.c ****                     debug_tapping_key();
+ 181:tmk_core/common/action_tapping.c ****                     return true;
+ 182:tmk_core/common/action_tapping.c ****                 } else if (is_tap_key(event.key) && event.pressed) {
+ 183:tmk_core/common/action_tapping.c ****                     if (tapping_key.tap.count > 1) {
+ 184:tmk_core/common/action_tapping.c ****                         debug("Tapping: Start new tap with releasing last tap(>1).\n");
+ 185:tmk_core/common/action_tapping.c ****                         // unregister key
+ 186:tmk_core/common/action_tapping.c ****                         process_record(&(keyrecord_t){.tap = tapping_key.tap, .event.key = tapping_
+ 187:tmk_core/common/action_tapping.c ****                     } else {
+ 188:tmk_core/common/action_tapping.c ****                         debug("Tapping: Start while last tap(1).\n");
+ 189:tmk_core/common/action_tapping.c ****                     }
+ 190:tmk_core/common/action_tapping.c ****                     tapping_key = *keyp;
+ 191:tmk_core/common/action_tapping.c ****                     waiting_buffer_scan_tap();
+ 192:tmk_core/common/action_tapping.c ****                     debug_tapping_key();
+ 193:tmk_core/common/action_tapping.c ****                     return true;
+ 194:tmk_core/common/action_tapping.c ****                 } else {
+ 195:tmk_core/common/action_tapping.c ****                     if (!IS_NOEVENT(event)) {
+ 196:tmk_core/common/action_tapping.c ****                         debug("Tapping: key event while last tap(>0).\n");
+ 197:tmk_core/common/action_tapping.c ****                     }
+ 198:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 199:tmk_core/common/action_tapping.c ****                     return true;
+ 200:tmk_core/common/action_tapping.c ****                 }
+ 201:tmk_core/common/action_tapping.c ****             }
+ 202:tmk_core/common/action_tapping.c ****         }
+ 203:tmk_core/common/action_tapping.c ****         // after TAPPING_TERM
+ 204:tmk_core/common/action_tapping.c ****         else {
+ 205:tmk_core/common/action_tapping.c ****             if (tapping_key.tap.count == 0) {
+ 206:tmk_core/common/action_tapping.c ****                 debug("Tapping: End. Timeout. Not tap(0): ");
+ 207:tmk_core/common/action_tapping.c ****                 debug_event(event);
+ 208:tmk_core/common/action_tapping.c ****                 debug("\n");
+ 209:tmk_core/common/action_tapping.c ****                 process_record(&tapping_key);
+ 210:tmk_core/common/action_tapping.c ****                 tapping_key = (keyrecord_t){};
+ 211:tmk_core/common/action_tapping.c ****                 debug_tapping_key();
+ 212:tmk_core/common/action_tapping.c ****                 return false;
+ 213:tmk_core/common/action_tapping.c ****             } else {
+ 214:tmk_core/common/action_tapping.c ****                 if (IS_TAPPING_KEY(event.key) && !event.pressed) {
+ 215:tmk_core/common/action_tapping.c ****                     debug("Tapping: End. last timeout tap release(>0).");
+ 216:tmk_core/common/action_tapping.c ****                     keyp->tap = tapping_key.tap;
+ 217:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 218:tmk_core/common/action_tapping.c ****                     tapping_key = (keyrecord_t){};
+ 219:tmk_core/common/action_tapping.c ****                     return true;
+ 220:tmk_core/common/action_tapping.c ****                 } else if (is_tap_key(event.key) && event.pressed) {
+ 221:tmk_core/common/action_tapping.c ****                     if (tapping_key.tap.count > 1) {
+ 222:tmk_core/common/action_tapping.c ****                         debug("Tapping: Start new tap with releasing last timeout tap(>1).\n");
+ 223:tmk_core/common/action_tapping.c ****                         // unregister key
+ 224:tmk_core/common/action_tapping.c ****                         process_record(&(keyrecord_t){.tap = tapping_key.tap, .event.key = tapping_
+ 225:tmk_core/common/action_tapping.c ****                     } else {
+ 226:tmk_core/common/action_tapping.c ****                         debug("Tapping: Start while last timeout tap(1).\n");
+ 227:tmk_core/common/action_tapping.c ****                     }
+ 228:tmk_core/common/action_tapping.c ****                     tapping_key = *keyp;
+ 229:tmk_core/common/action_tapping.c ****                     waiting_buffer_scan_tap();
+ 230:tmk_core/common/action_tapping.c ****                     debug_tapping_key();
+ 231:tmk_core/common/action_tapping.c ****                     return true;
+ 232:tmk_core/common/action_tapping.c ****                 } else {
+ 233:tmk_core/common/action_tapping.c ****                     if (!IS_NOEVENT(event)) {
+ 234:tmk_core/common/action_tapping.c ****                         debug("Tapping: key event while last timeout tap(>0).\n");
+ 235:tmk_core/common/action_tapping.c ****                     }
+ 236:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 237:tmk_core/common/action_tapping.c ****                     return true;
+ 238:tmk_core/common/action_tapping.c ****                 }
+ 239:tmk_core/common/action_tapping.c ****             }
+ 240:tmk_core/common/action_tapping.c ****         }
+ 241:tmk_core/common/action_tapping.c ****     } else if (IS_TAPPING_RELEASED()) {
+ 242:tmk_core/common/action_tapping.c ****         if (WITHIN_TAPPING_TERM(event)) {
+ 243:tmk_core/common/action_tapping.c ****             if (event.pressed) {
+ 244:tmk_core/common/action_tapping.c ****                 if (IS_TAPPING_KEY(event.key)) {
+ 245:tmk_core/common/action_tapping.c **** //#    ifndef TAPPING_FORCE_HOLD
+ 246:tmk_core/common/action_tapping.c **** #    if !defined(TAPPING_FORCE_HOLD) || defined(TAPPING_FORCE_HOLD_PER_KEY)
+ 247:tmk_core/common/action_tapping.c ****                     if (
+ 248:tmk_core/common/action_tapping.c **** #        ifdef TAPPING_FORCE_HOLD_PER_KEY
+ 249:tmk_core/common/action_tapping.c ****                         !get_tapping_force_hold(get_event_keycode(tapping_key.event, false), keyp) 
+ 250:tmk_core/common/action_tapping.c **** #        endif
+ 251:tmk_core/common/action_tapping.c ****                         !tapping_key.tap.interrupted && tapping_key.tap.count > 0) {
+ 252:tmk_core/common/action_tapping.c ****                         // sequential tap.
+ 253:tmk_core/common/action_tapping.c ****                         keyp->tap = tapping_key.tap;
+ 254:tmk_core/common/action_tapping.c ****                         if (keyp->tap.count < 15) keyp->tap.count += 1;
+ 255:tmk_core/common/action_tapping.c ****                         debug("Tapping: Tap press(");
+ 256:tmk_core/common/action_tapping.c ****                         debug_dec(keyp->tap.count);
+ 257:tmk_core/common/action_tapping.c ****                         debug(")\n");
+ 258:tmk_core/common/action_tapping.c ****                         process_record(keyp);
+ 259:tmk_core/common/action_tapping.c ****                         tapping_key = *keyp;
+ 260:tmk_core/common/action_tapping.c ****                         debug_tapping_key();
+ 261:tmk_core/common/action_tapping.c ****                         return true;
+ 262:tmk_core/common/action_tapping.c ****                     }
+ 263:tmk_core/common/action_tapping.c **** #    endif
+ 264:tmk_core/common/action_tapping.c ****                     // FIX: start new tap again
+ 265:tmk_core/common/action_tapping.c ****                     tapping_key = *keyp;
+ 266:tmk_core/common/action_tapping.c ****                     return true;
+ 267:tmk_core/common/action_tapping.c ****                 } else if (is_tap_key(event.key)) {
+ 268:tmk_core/common/action_tapping.c ****                     // Sequential tap can be interfered with other tap key.
+ 269:tmk_core/common/action_tapping.c ****                     debug("Tapping: Start with interfering other tap.\n");
+ 270:tmk_core/common/action_tapping.c ****                     tapping_key = *keyp;
+ 271:tmk_core/common/action_tapping.c ****                     waiting_buffer_scan_tap();
+ 272:tmk_core/common/action_tapping.c ****                     debug_tapping_key();
+ 273:tmk_core/common/action_tapping.c ****                     return true;
+ 274:tmk_core/common/action_tapping.c ****                 } else {
+ 275:tmk_core/common/action_tapping.c ****                     // should none in buffer
+ 276:tmk_core/common/action_tapping.c ****                     // FIX: interrupted when other key is pressed
+ 277:tmk_core/common/action_tapping.c ****                     tapping_key.tap.interrupted = true;
+ 278:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 279:tmk_core/common/action_tapping.c ****                     return true;
+ 280:tmk_core/common/action_tapping.c ****                 }
+ 281:tmk_core/common/action_tapping.c ****             } else {
+ 282:tmk_core/common/action_tapping.c ****                 if (!IS_NOEVENT(event)) debug("Tapping: other key just after tap.\n");
+ 283:tmk_core/common/action_tapping.c ****                 process_record(keyp);
+ 284:tmk_core/common/action_tapping.c ****                 return true;
+ 285:tmk_core/common/action_tapping.c ****             }
+ 286:tmk_core/common/action_tapping.c ****         } else {
+ 287:tmk_core/common/action_tapping.c ****             // FIX: process_action here?
+ 288:tmk_core/common/action_tapping.c ****             // timeout. no sequential tap.
+ 289:tmk_core/common/action_tapping.c ****             debug("Tapping: End(Timeout after releasing last tap): ");
+ 290:tmk_core/common/action_tapping.c ****             debug_event(event);
+ 291:tmk_core/common/action_tapping.c ****             debug("\n");
+ 292:tmk_core/common/action_tapping.c ****             tapping_key = (keyrecord_t){};
+ 293:tmk_core/common/action_tapping.c ****             debug_tapping_key();
+ 294:tmk_core/common/action_tapping.c ****             return false;
+ 295:tmk_core/common/action_tapping.c ****         }
+ 296:tmk_core/common/action_tapping.c ****     }
+ 297:tmk_core/common/action_tapping.c ****     // not tapping state
+ 298:tmk_core/common/action_tapping.c ****     else {
+ 299:tmk_core/common/action_tapping.c ****         if (event.pressed && is_tap_key(event.key)) {
+ 300:tmk_core/common/action_tapping.c ****             debug("Tapping: Start(Press tap key).\n");
+ 301:tmk_core/common/action_tapping.c ****             tapping_key = *keyp;
+ 302:tmk_core/common/action_tapping.c ****             process_record_tap_hint(&tapping_key);
+ 303:tmk_core/common/action_tapping.c ****             waiting_buffer_scan_tap();
+ 304:tmk_core/common/action_tapping.c ****             debug_tapping_key();
+ 305:tmk_core/common/action_tapping.c ****             return true;
+ 306:tmk_core/common/action_tapping.c ****         } else {
+ 307:tmk_core/common/action_tapping.c ****             process_record(keyp);
+ 308:tmk_core/common/action_tapping.c ****             return true;
+ 309:tmk_core/common/action_tapping.c ****         }
+ 310:tmk_core/common/action_tapping.c ****     }
+ 311:tmk_core/common/action_tapping.c **** }
+ 312:tmk_core/common/action_tapping.c **** 
+ 313:tmk_core/common/action_tapping.c **** /** \brief Waiting buffer enq
+ 314:tmk_core/common/action_tapping.c ****  *
+ 315:tmk_core/common/action_tapping.c ****  * FIXME: Needs docs
+ 316:tmk_core/common/action_tapping.c ****  */
+ 317:tmk_core/common/action_tapping.c **** bool waiting_buffer_enq(keyrecord_t record) {
+ 318:tmk_core/common/action_tapping.c ****     if (IS_NOEVENT(record.event)) {
+ 319:tmk_core/common/action_tapping.c ****         return true;
+ 320:tmk_core/common/action_tapping.c ****     }
+ 321:tmk_core/common/action_tapping.c **** 
+ 322:tmk_core/common/action_tapping.c ****     if ((waiting_buffer_head + 1) % WAITING_BUFFER_SIZE == waiting_buffer_tail) {
+ 323:tmk_core/common/action_tapping.c ****         debug("waiting_buffer_enq: Over flow.\n");
+ 324:tmk_core/common/action_tapping.c ****         return false;
+ 325:tmk_core/common/action_tapping.c ****     }
+ 326:tmk_core/common/action_tapping.c **** 
+ 327:tmk_core/common/action_tapping.c ****     waiting_buffer[waiting_buffer_head] = record;
+ 328:tmk_core/common/action_tapping.c ****     waiting_buffer_head                 = (waiting_buffer_head + 1) % WAITING_BUFFER_SIZE;
+ 329:tmk_core/common/action_tapping.c **** 
+ 330:tmk_core/common/action_tapping.c ****     debug("waiting_buffer_enq: ");
+ 331:tmk_core/common/action_tapping.c ****     debug_waiting_buffer();
+ 332:tmk_core/common/action_tapping.c ****     return true;
+ 333:tmk_core/common/action_tapping.c **** }
+ 334:tmk_core/common/action_tapping.c **** 
+ 335:tmk_core/common/action_tapping.c **** /** \brief Waiting buffer clear
+ 336:tmk_core/common/action_tapping.c ****  *
+ 337:tmk_core/common/action_tapping.c ****  * FIXME: Needs docs
+ 338:tmk_core/common/action_tapping.c ****  */
+ 339:tmk_core/common/action_tapping.c **** void waiting_buffer_clear(void) {
+ 340:tmk_core/common/action_tapping.c ****     waiting_buffer_head = 0;
+ 341:tmk_core/common/action_tapping.c ****     waiting_buffer_tail = 0;
+ 342:tmk_core/common/action_tapping.c **** }
+ 343:tmk_core/common/action_tapping.c **** 
+ 344:tmk_core/common/action_tapping.c **** /** \brief Waiting buffer typed
+ 345:tmk_core/common/action_tapping.c ****  *
+ 346:tmk_core/common/action_tapping.c ****  * FIXME: Needs docs
+ 347:tmk_core/common/action_tapping.c ****  */
+ 348:tmk_core/common/action_tapping.c **** bool waiting_buffer_typed(keyevent_t event) {
+ 349:tmk_core/common/action_tapping.c ****     for (uint8_t i = waiting_buffer_tail; i != waiting_buffer_head; i = (i + 1) % WAITING_BUFFER_SI
+ 350:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 351:tmk_core/common/action_tapping.c ****             return true;
+ 352:tmk_core/common/action_tapping.c ****         }
+ 353:tmk_core/common/action_tapping.c ****     }
+ 354:tmk_core/common/action_tapping.c ****     return false;
+ 355:tmk_core/common/action_tapping.c **** }
+ 356:tmk_core/common/action_tapping.c **** 
+ 357:tmk_core/common/action_tapping.c **** /** \brief Waiting buffer has anykey pressed
+ 358:tmk_core/common/action_tapping.c ****  *
+ 359:tmk_core/common/action_tapping.c ****  * FIXME: Needs docs
+ 360:tmk_core/common/action_tapping.c ****  */
+ 361:tmk_core/common/action_tapping.c **** __attribute__((unused)) bool waiting_buffer_has_anykey_pressed(void) {
+ 362:tmk_core/common/action_tapping.c ****     for (uint8_t i = waiting_buffer_tail; i != waiting_buffer_head; i = (i + 1) % WAITING_BUFFER_SI
+ 363:tmk_core/common/action_tapping.c ****         if (waiting_buffer[i].event.pressed) return true;
+ 364:tmk_core/common/action_tapping.c ****     }
+ 365:tmk_core/common/action_tapping.c ****     return false;
+ 366:tmk_core/common/action_tapping.c **** }
+ 367:tmk_core/common/action_tapping.c **** 
+ 368:tmk_core/common/action_tapping.c **** /** \brief Scan buffer for tapping
+ 369:tmk_core/common/action_tapping.c ****  *
+ 370:tmk_core/common/action_tapping.c ****  * FIXME: Needs docs
+ 371:tmk_core/common/action_tapping.c ****  */
+ 372:tmk_core/common/action_tapping.c **** void waiting_buffer_scan_tap(void) {
+ 373:tmk_core/common/action_tapping.c ****     // tapping already is settled
+ 374:tmk_core/common/action_tapping.c ****     if (tapping_key.tap.count > 0) return;
+ 375:tmk_core/common/action_tapping.c ****     // invalid state: tapping_key released && tap.count == 0
+ 376:tmk_core/common/action_tapping.c ****     if (!tapping_key.event.pressed) return;
+ 377:tmk_core/common/action_tapping.c **** 
+ 378:tmk_core/common/action_tapping.c ****     for (uint8_t i = waiting_buffer_tail; i != waiting_buffer_head; i = (i + 1) % WAITING_BUFFER_SI
+ 379:tmk_core/common/action_tapping.c ****         if (IS_TAPPING_KEY(waiting_buffer[i].event.key) && !waiting_buffer[i].event.pressed && WITH
+ 380:tmk_core/common/action_tapping.c ****             tapping_key.tap.count       = 1;
+ 381:tmk_core/common/action_tapping.c ****             waiting_buffer[i].tap.count = 1;
+ 382:tmk_core/common/action_tapping.c ****             process_record(&tapping_key);
+ 383:tmk_core/common/action_tapping.c **** 
+ 384:tmk_core/common/action_tapping.c ****             debug("waiting_buffer_scan_tap: found at [");
+ 385:tmk_core/common/action_tapping.c ****             debug_dec(i);
+ 386:tmk_core/common/action_tapping.c ****             debug("]\n");
+ 387:tmk_core/common/action_tapping.c ****             debug_waiting_buffer();
+ 388:tmk_core/common/action_tapping.c ****             return;
+ 389:tmk_core/common/action_tapping.c ****         }
+ 390:tmk_core/common/action_tapping.c ****     }
+ 391:tmk_core/common/action_tapping.c **** }
+ 392:tmk_core/common/action_tapping.c **** 
+ 393:tmk_core/common/action_tapping.c **** /** \brief Tapping key debug print
+ 394:tmk_core/common/action_tapping.c ****  *
+ 395:tmk_core/common/action_tapping.c ****  * FIXME: Needs docs
+ 396:tmk_core/common/action_tapping.c ****  */
+ 397:tmk_core/common/action_tapping.c **** static void debug_tapping_key(void) {
+ 398:tmk_core/common/action_tapping.c ****     debug("TAPPING_KEY=");
+ 399:tmk_core/common/action_tapping.c ****     debug_record(tapping_key);
+ 400:tmk_core/common/action_tapping.c ****     debug("\n");
+ 401:tmk_core/common/action_tapping.c **** }
+ 402:tmk_core/common/action_tapping.c **** 
+ 403:tmk_core/common/action_tapping.c **** /** \brief Waiting buffer debug print
+ 404:tmk_core/common/action_tapping.c ****  *
+ 405:tmk_core/common/action_tapping.c ****  * FIXME: Needs docs
+ 406:tmk_core/common/action_tapping.c ****  */
+ 407:tmk_core/common/action_tapping.c **** static void debug_waiting_buffer(void) {
+  15               		.loc 1 407 40 view -0
+  16               		.cfi_startproc
+  17 0000 1F93      		push r17
+  18               	.LCFI0:
+  19               		.cfi_def_cfa_offset 3
+  20               		.cfi_offset 17, -2
+  21 0002 CF93      		push r28
+  22               	.LCFI1:
+  23               		.cfi_def_cfa_offset 4
+  24               		.cfi_offset 28, -3
+  25 0004 DF93      		push r29
+  26               	.LCFI2:
+  27               		.cfi_def_cfa_offset 5
+  28               		.cfi_offset 29, -4
+  29               	/* prologue: function */
+  30               	/* frame size = 0 */
+  31               	/* stack size = 3 */
+  32               	.L__stack_usage = 3
+ 408:tmk_core/common/action_tapping.c ****     debug("{ ");
+  33               		.loc 1 408 16 view .LVU1
+ 409:tmk_core/common/action_tapping.c ****     for (uint8_t i = waiting_buffer_tail; i != waiting_buffer_head; i = (i + 1) % WAITING_BUFFER_SI
+  34               		.loc 1 409 5 view .LVU2
+  35               	.LBB3:
+  36               		.loc 1 409 10 view .LVU3
+  37               		.loc 1 409 18 is_stmt 0 view .LVU4
+  38 0006 C091 0000 		lds r28,waiting_buffer_tail
+  39               	.LVL0:
+ 410:tmk_core/common/action_tapping.c ****         debug("[");
+ 411:tmk_core/common/action_tapping.c ****         debug_dec(i);
+ 412:tmk_core/common/action_tapping.c ****         debug("]=");
+ 413:tmk_core/common/action_tapping.c ****         debug_record(waiting_buffer[i]);
+  40               		.loc 1 413 9 view .LVU5
+  41 000a 16E0      		ldi r17,lo8(6)
+  42               	.LVL1:
+  43               	.L2:
+ 409:tmk_core/common/action_tapping.c ****     for (uint8_t i = waiting_buffer_tail; i != waiting_buffer_head; i = (i + 1) % WAITING_BUFFER_SI
+  44               		.loc 1 409 43 is_stmt 1 discriminator 1 view .LVU6
+ 409:tmk_core/common/action_tapping.c ****     for (uint8_t i = waiting_buffer_tail; i != waiting_buffer_head; i = (i + 1) % WAITING_BUFFER_SI
+  45               		.loc 1 409 5 is_stmt 0 discriminator 1 view .LVU7
+  46 000c 8091 0000 		lds r24,waiting_buffer_head
+  47 0010 8C13      		cpse r24,r28
+  48 0012 00C0      		rjmp .L3
+  49               	/* epilogue start */
+  50               	.LBE3:
+ 414:tmk_core/common/action_tapping.c ****         debug(" ");
+ 415:tmk_core/common/action_tapping.c ****     }
+ 416:tmk_core/common/action_tapping.c ****     debug("}\n");
+ 417:tmk_core/common/action_tapping.c **** }
+  51               		.loc 1 417 1 view .LVU8
+  52 0014 DF91      		pop r29
+  53 0016 CF91      		pop r28
+  54               	.LVL2:
+  55               		.loc 1 417 1 view .LVU9
+  56 0018 1F91      		pop r17
+  57 001a 0895      		ret
+  58               	.LVL3:
+  59               	.L3:
+  60               	.LBB4:
+ 410:tmk_core/common/action_tapping.c ****         debug("[");
+  61               		.loc 1 410 19 is_stmt 1 discriminator 3 view .LVU10
+ 411:tmk_core/common/action_tapping.c ****         debug("]=");
+  62               		.loc 1 411 21 discriminator 3 view .LVU11
+ 412:tmk_core/common/action_tapping.c ****         debug_record(waiting_buffer[i]);
+  63               		.loc 1 412 20 discriminator 3 view .LVU12
+ 413:tmk_core/common/action_tapping.c ****         debug(" ");
+  64               		.loc 1 413 9 discriminator 3 view .LVU13
+  65 001c D0E0      		ldi r29,0
+  66 001e 1C9F      		mul r17,r28
+  67 0020 F001      		movw r30,r0
+  68 0022 1D9F      		mul r17,r29
+  69 0024 F00D      		add r31,r0
+  70 0026 1124      		clr __zero_reg__
+  71 0028 E050      		subi r30,lo8(-(waiting_buffer))
+  72 002a F040      		sbci r31,hi8(-(waiting_buffer))
+  73 002c 4081      		ld r20,Z
+  74 002e 5181      		ldd r21,Z+1
+  75 0030 6281      		ldd r22,Z+2
+  76 0032 7381      		ldd r23,Z+3
+  77 0034 8481      		ldd r24,Z+4
+  78 0036 9581      		ldd r25,Z+5
+  79 0038 0E94 0000 		call debug_record
+  80               	.LVL4:
+ 414:tmk_core/common/action_tapping.c ****     }
+  81               		.loc 1 414 19 discriminator 3 view .LVU14
+ 409:tmk_core/common/action_tapping.c ****         debug("[");
+  82               		.loc 1 409 69 discriminator 3 view .LVU15
+ 409:tmk_core/common/action_tapping.c ****         debug("[");
+  83               		.loc 1 409 76 is_stmt 0 discriminator 3 view .LVU16
+  84 003c 2196      		adiw r28,1
+  85               	.LVL5:
+ 409:tmk_core/common/action_tapping.c ****         debug("[");
+  86               		.loc 1 409 71 discriminator 3 view .LVU17
+  87 003e C770      		andi r28,lo8(7)
+ 409:tmk_core/common/action_tapping.c ****         debug("[");
+  88               		.loc 1 409 71 discriminator 3 view .LVU18
+  89 0040 00C0      		rjmp .L2
+  90               	.LBE4:
+  91               		.cfi_endproc
+  92               	.LFE13:
+  94               		.section	.text.debug_tapping_key,"ax",@progbits
+  96               	debug_tapping_key:
+  97               	.LFB12:
+ 397:tmk_core/common/action_tapping.c ****     debug("TAPPING_KEY=");
+  98               		.loc 1 397 37 is_stmt 1 view -0
+  99               		.cfi_startproc
+ 100               	/* prologue: function */
+ 101               	/* frame size = 0 */
+ 102               	/* stack size = 0 */
+ 103               	.L__stack_usage = 0
+ 398:tmk_core/common/action_tapping.c ****     debug_record(tapping_key);
+ 104               		.loc 1 398 26 view .LVU20
+ 399:tmk_core/common/action_tapping.c ****     debug("\n");
+ 105               		.loc 1 399 5 view .LVU21
+ 106 0000 4091 0000 		lds r20,tapping_key
+ 107 0004 5091 0000 		lds r21,tapping_key+1
+ 108 0008 6091 0000 		lds r22,tapping_key+2
+ 109 000c 7091 0000 		lds r23,tapping_key+3
+ 110 0010 8091 0000 		lds r24,tapping_key+4
+ 111 0014 9091 0000 		lds r25,tapping_key+5
+ 112 0018 0C94 0000 		jmp debug_record
+ 113               	.LVL6:
+ 114               		.cfi_endproc
+ 115               	.LFE12:
+ 117               		.section	.text.waiting_buffer_scan_tap,"ax",@progbits
+ 119               	waiting_buffer_scan_tap:
+ 120               	.LFB11:
+ 372:tmk_core/common/action_tapping.c ****     // tapping already is settled
+ 121               		.loc 1 372 36 view -0
+ 122               		.cfi_startproc
+ 123 0000 1F93      		push r17
+ 124               	.LCFI3:
+ 125               		.cfi_def_cfa_offset 3
+ 126               		.cfi_offset 17, -2
+ 127 0002 CF93      		push r28
+ 128               	.LCFI4:
+ 129               		.cfi_def_cfa_offset 4
+ 130               		.cfi_offset 28, -3
+ 131 0004 DF93      		push r29
+ 132               	.LCFI5:
+ 133               		.cfi_def_cfa_offset 5
+ 134               		.cfi_offset 29, -4
+ 135               	/* prologue: function */
+ 136               	/* frame size = 0 */
+ 137               	/* stack size = 3 */
+ 138               	.L__stack_usage = 3
+ 374:tmk_core/common/action_tapping.c ****     // invalid state: tapping_key released && tap.count == 0
+ 139               		.loc 1 374 5 view .LVU23
+ 374:tmk_core/common/action_tapping.c ****     // invalid state: tapping_key released && tap.count == 0
+ 140               		.loc 1 374 31 is_stmt 0 view .LVU24
+ 141 0006 8091 0000 		lds r24,tapping_key+5
+ 142 000a 807F      		andi r24,lo8(-16)
+ 374:tmk_core/common/action_tapping.c ****     // invalid state: tapping_key released && tap.count == 0
+ 143               		.loc 1 374 8 view .LVU25
+ 144 000c 01F4      		brne .L5
+ 376:tmk_core/common/action_tapping.c **** 
+ 145               		.loc 1 376 5 is_stmt 1 view .LVU26
+ 376:tmk_core/common/action_tapping.c **** 
+ 146               		.loc 1 376 8 is_stmt 0 view .LVU27
+ 147 000e 8091 0000 		lds r24,tapping_key+2
+ 148 0012 8823      		tst r24
+ 149 0014 01F0      		breq .L5
+ 378:tmk_core/common/action_tapping.c ****         if (IS_TAPPING_KEY(waiting_buffer[i].event.key) && !waiting_buffer[i].event.pressed && WITH
+ 150               		.loc 1 378 5 is_stmt 1 view .LVU28
+ 151               	.LBB8:
+ 378:tmk_core/common/action_tapping.c ****         if (IS_TAPPING_KEY(waiting_buffer[i].event.key) && !waiting_buffer[i].event.pressed && WITH
+ 152               		.loc 1 378 10 view .LVU29
+ 378:tmk_core/common/action_tapping.c ****         if (IS_TAPPING_KEY(waiting_buffer[i].event.key) && !waiting_buffer[i].event.pressed && WITH
+ 153               		.loc 1 378 18 is_stmt 0 view .LVU30
+ 154 0016 8091 0000 		lds r24,waiting_buffer_tail
+ 155               	.LVL7:
+ 378:tmk_core/common/action_tapping.c ****         if (IS_TAPPING_KEY(waiting_buffer[i].event.key) && !waiting_buffer[i].event.pressed && WITH
+ 156               		.loc 1 378 45 view .LVU31
+ 157 001a C091 0000 		lds r28,waiting_buffer_head
+ 379:tmk_core/common/action_tapping.c ****             tapping_key.tap.count       = 1;
+ 158               		.loc 1 379 13 view .LVU32
+ 159 001e 6091 0000 		lds r22,tapping_key
+ 160 0022 7091 0000 		lds r23,tapping_key+1
+ 161 0026 A091 0000 		lds r26,tapping_key+3
+ 162 002a B091 0000 		lds r27,tapping_key+3+1
+ 163 002e D62F      		mov r29,r22
+ 164 0030 D723      		and r29,r23
+ 165 0032 16E0      		ldi r17,lo8(6)
+ 166               	.LVL8:
+ 167               	.L7:
+ 378:tmk_core/common/action_tapping.c ****         if (IS_TAPPING_KEY(waiting_buffer[i].event.key) && !waiting_buffer[i].event.pressed && WITH
+ 168               		.loc 1 378 43 is_stmt 1 discriminator 1 view .LVU33
+ 378:tmk_core/common/action_tapping.c ****         if (IS_TAPPING_KEY(waiting_buffer[i].event.key) && !waiting_buffer[i].event.pressed && WITH
+ 169               		.loc 1 378 5 is_stmt 0 discriminator 1 view .LVU34
+ 170 0034 C813      		cpse r28,r24
+ 171 0036 00C0      		rjmp .L10
+ 172               	.LVL9:
+ 173               	.L5:
+ 174               	/* epilogue start */
+ 378:tmk_core/common/action_tapping.c ****         if (IS_TAPPING_KEY(waiting_buffer[i].event.key) && !waiting_buffer[i].event.pressed && WITH
+ 175               		.loc 1 378 5 discriminator 1 view .LVU35
+ 176               	.LBE8:
+ 391:tmk_core/common/action_tapping.c **** 
+ 177               		.loc 1 391 1 view .LVU36
+ 178 0038 DF91      		pop r29
+ 179 003a CF91      		pop r28
+ 180 003c 1F91      		pop r17
+ 181 003e 0895      		ret
+ 182               	.LVL10:
+ 183               	.L10:
+ 184               	.LBB11:
+ 379:tmk_core/common/action_tapping.c ****             tapping_key.tap.count       = 1;
+ 185               		.loc 1 379 9 is_stmt 1 view .LVU37
+ 186               	.LBB9:
+ 187               	.LBI9:
+ 188               		.file 2 "tmk_core/common/keyboard.h"
+   1:tmk_core/common/keyboard.h **** /*
+   2:tmk_core/common/keyboard.h **** Copyright 2011,2012,2013 Jun Wako <wakojun@gmail.com>
+   3:tmk_core/common/keyboard.h **** 
+   4:tmk_core/common/keyboard.h **** This program is free software: you can redistribute it and/or modify
+   5:tmk_core/common/keyboard.h **** it under the terms of the GNU General Public License as published by
+   6:tmk_core/common/keyboard.h **** the Free Software Foundation, either version 2 of the License, or
+   7:tmk_core/common/keyboard.h **** (at your option) any later version.
+   8:tmk_core/common/keyboard.h **** 
+   9:tmk_core/common/keyboard.h **** This program is distributed in the hope that it will be useful,
+  10:tmk_core/common/keyboard.h **** but WITHOUT ANY WARRANTY; without even the implied warranty of
+  11:tmk_core/common/keyboard.h **** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  12:tmk_core/common/keyboard.h **** GNU General Public License for more details.
+  13:tmk_core/common/keyboard.h **** 
+  14:tmk_core/common/keyboard.h **** You should have received a copy of the GNU General Public License
+  15:tmk_core/common/keyboard.h **** along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  16:tmk_core/common/keyboard.h **** */
+  17:tmk_core/common/keyboard.h **** 
+  18:tmk_core/common/keyboard.h **** #ifndef KEYBOARD_H
+  19:tmk_core/common/keyboard.h **** #define KEYBOARD_H
+  20:tmk_core/common/keyboard.h **** 
+  21:tmk_core/common/keyboard.h **** #include <stdbool.h>
+  22:tmk_core/common/keyboard.h **** #include <stdint.h>
+  23:tmk_core/common/keyboard.h **** 
+  24:tmk_core/common/keyboard.h **** #ifdef __cplusplus
+  25:tmk_core/common/keyboard.h **** extern "C" {
+  26:tmk_core/common/keyboard.h **** #endif
+  27:tmk_core/common/keyboard.h **** 
+  28:tmk_core/common/keyboard.h **** /* key matrix position */
+  29:tmk_core/common/keyboard.h **** typedef struct {
+  30:tmk_core/common/keyboard.h ****     uint8_t col;
+  31:tmk_core/common/keyboard.h ****     uint8_t row;
+  32:tmk_core/common/keyboard.h **** } keypos_t;
+  33:tmk_core/common/keyboard.h **** 
+  34:tmk_core/common/keyboard.h **** /* key event */
+  35:tmk_core/common/keyboard.h **** typedef struct {
+  36:tmk_core/common/keyboard.h ****     keypos_t key;
+  37:tmk_core/common/keyboard.h ****     bool     pressed;
+  38:tmk_core/common/keyboard.h ****     uint16_t time;
+  39:tmk_core/common/keyboard.h **** } keyevent_t;
+  40:tmk_core/common/keyboard.h **** 
+  41:tmk_core/common/keyboard.h **** /* equivalent test of keypos_t */
+  42:tmk_core/common/keyboard.h **** #define KEYEQ(keya, keyb) ((keya).row == (keyb).row && (keya).col == (keyb).col)
+  43:tmk_core/common/keyboard.h **** 
+  44:tmk_core/common/keyboard.h **** /* Rules for No Event:
+  45:tmk_core/common/keyboard.h ****  * 1) (time == 0) to handle (keyevent_t){} as empty event
+  46:tmk_core/common/keyboard.h ****  * 2) Matrix(255, 255) to make TICK event available
+  47:tmk_core/common/keyboard.h ****  */
+  48:tmk_core/common/keyboard.h **** static inline bool IS_NOEVENT(keyevent_t event) { return event.time == 0 || (event.key.row == 255 &
+ 189               		.loc 2 48 20 view .LVU38
+ 190               	.LBB10:
+ 191               		.loc 2 48 51 view .LVU39
+ 192 0040 90E0      		ldi r25,0
+ 193               		.loc 2 48 74 is_stmt 0 view .LVU40
+ 194 0042 1097      		sbiw r26,0
+ 195 0044 01F0      		breq .L8
+ 196 0046 DF3F      		cpi r29,lo8(-1)
+ 197 0048 01F4      		brne .L21
+ 198               	.L8:
+ 199               	.LBE10:
+ 200               	.LBE9:
+ 378:tmk_core/common/action_tapping.c ****         if (IS_TAPPING_KEY(waiting_buffer[i].event.key) && !waiting_buffer[i].event.pressed && WITH
+ 201               		.loc 1 378 69 is_stmt 1 discriminator 2 view .LVU41
+ 378:tmk_core/common/action_tapping.c ****         if (IS_TAPPING_KEY(waiting_buffer[i].event.key) && !waiting_buffer[i].event.pressed && WITH
+ 202               		.loc 1 378 76 is_stmt 0 discriminator 2 view .LVU42
+ 203 004a 0196      		adiw r24,1
+ 204               	.LVL11:
+ 378:tmk_core/common/action_tapping.c ****         if (IS_TAPPING_KEY(waiting_buffer[i].event.key) && !waiting_buffer[i].event.pressed && WITH
+ 205               		.loc 1 378 71 discriminator 2 view .LVU43
+ 206 004c 8770      		andi r24,lo8(7)
+ 378:tmk_core/common/action_tapping.c ****         if (IS_TAPPING_KEY(waiting_buffer[i].event.key) && !waiting_buffer[i].event.pressed && WITH
+ 207               		.loc 1 378 71 discriminator 2 view .LVU44
+ 208 004e 00C0      		rjmp .L7
+ 209               	.LVL12:
+ 210               	.L21:
+ 379:tmk_core/common/action_tapping.c ****             tapping_key.tap.count       = 1;
+ 211               		.loc 1 379 13 view .LVU45
+ 212 0050 189F      		mul r17,r24
+ 213 0052 9001      		movw r18,r0
+ 214 0054 199F      		mul r17,r25
+ 215 0056 300D      		add r19,r0
+ 216 0058 1124      		clr __zero_reg__
+ 217 005a F901      		movw r30,r18
+ 218 005c E050      		subi r30,lo8(-(waiting_buffer))
+ 219 005e F040      		sbci r31,hi8(-(waiting_buffer))
+ 220 0060 4181      		ldd r20,Z+1
+ 221 0062 4713      		cpse r20,r23
+ 222 0064 00C0      		rjmp .L8
+ 379:tmk_core/common/action_tapping.c ****             tapping_key.tap.count       = 1;
+ 223               		.loc 1 379 13 discriminator 2 view .LVU46
+ 224 0066 4081      		ld r20,Z
+ 225 0068 4613      		cpse r20,r22
+ 226 006a 00C0      		rjmp .L8
+ 379:tmk_core/common/action_tapping.c ****             tapping_key.tap.count       = 1;
+ 227               		.loc 1 379 57 discriminator 3 view .LVU47
+ 228 006c 4281      		ldd r20,Z+2
+ 229 006e 4111      		cpse r20,__zero_reg__
+ 230 0070 00C0      		rjmp .L8
+ 379:tmk_core/common/action_tapping.c ****             tapping_key.tap.count       = 1;
+ 231               		.loc 1 379 96 discriminator 4 view .LVU48
+ 232 0072 4381      		ldd r20,Z+3
+ 233 0074 5481      		ldd r21,Z+4
+ 234 0076 4A1B      		sub r20,r26
+ 235 0078 5B0B      		sbc r21,r27
+ 379:tmk_core/common/action_tapping.c ****             tapping_key.tap.count       = 1;
+ 236               		.loc 1 379 93 discriminator 4 view .LVU49
+ 237 007a 4436      		cpi r20,100
+ 238 007c 5105      		cpc r21,__zero_reg__
+ 239 007e 00F4      		brsh .L8
+ 380:tmk_core/common/action_tapping.c ****             waiting_buffer[i].tap.count = 1;
+ 240               		.loc 1 380 13 is_stmt 1 view .LVU50
+ 380:tmk_core/common/action_tapping.c ****             waiting_buffer[i].tap.count = 1;
+ 241               		.loc 1 380 41 is_stmt 0 view .LVU51
+ 242 0080 8091 0000 		lds r24,tapping_key+5
+ 243               	.LVL13:
+ 380:tmk_core/common/action_tapping.c ****             waiting_buffer[i].tap.count = 1;
+ 244               		.loc 1 380 41 view .LVU52
+ 245 0084 8F70      		andi r24,lo8(15)
+ 246 0086 8061      		ori r24,lo8(16)
+ 247 0088 8093 0000 		sts tapping_key+5,r24
+ 381:tmk_core/common/action_tapping.c ****             process_record(&tapping_key);
+ 248               		.loc 1 381 13 is_stmt 1 view .LVU53
+ 381:tmk_core/common/action_tapping.c ****             process_record(&tapping_key);
+ 249               		.loc 1 381 41 is_stmt 0 view .LVU54
+ 250 008c F901      		movw r30,r18
+ 251 008e E050      		subi r30,lo8(-(waiting_buffer+5))
+ 252 0090 F040      		sbci r31,hi8(-(waiting_buffer+5))
+ 253 0092 8081      		ld r24,Z
+ 254 0094 8F70      		andi r24,lo8(15)
+ 255 0096 8061      		ori r24,lo8(16)
+ 256 0098 8083      		st Z,r24
+ 382:tmk_core/common/action_tapping.c **** 
+ 257               		.loc 1 382 13 is_stmt 1 view .LVU55
+ 258 009a 80E0      		ldi r24,lo8(tapping_key)
+ 259 009c 90E0      		ldi r25,hi8(tapping_key)
+ 260 009e 0E94 0000 		call process_record
+ 261               	.LVL14:
+ 384:tmk_core/common/action_tapping.c ****             debug_dec(i);
+ 262               		.loc 1 384 57 view .LVU56
+ 385:tmk_core/common/action_tapping.c ****             debug("]\n");
+ 263               		.loc 1 385 25 view .LVU57
+ 386:tmk_core/common/action_tapping.c ****             debug_waiting_buffer();
+ 264               		.loc 1 386 25 view .LVU58
+ 387:tmk_core/common/action_tapping.c ****             return;
+ 265               		.loc 1 387 13 view .LVU59
+ 266               	/* epilogue start */
+ 267               	.LBE11:
+ 391:tmk_core/common/action_tapping.c **** 
+ 268               		.loc 1 391 1 is_stmt 0 view .LVU60
+ 269 00a2 DF91      		pop r29
+ 270 00a4 CF91      		pop r28
+ 271 00a6 1F91      		pop r17
+ 272               	.LBB12:
+ 387:tmk_core/common/action_tapping.c ****             return;
+ 273               		.loc 1 387 13 view .LVU61
+ 274 00a8 0C94 0000 		jmp debug_waiting_buffer
+ 275               	.LVL15:
+ 276               	.LBE12:
+ 277               		.cfi_endproc
+ 278               	.LFE11:
+ 280               		.section	.text.process_tapping,"ax",@progbits
+ 282               	process_tapping:
+ 283               	.LVL16:
+ 284               	.LFB6:
+  99:tmk_core/common/action_tapping.c ****     keyevent_t event = keyp->event;
+ 285               		.loc 1 99 41 is_stmt 1 view -0
+ 286               		.cfi_startproc
+  99:tmk_core/common/action_tapping.c ****     keyevent_t event = keyp->event;
+ 287               		.loc 1 99 41 is_stmt 0 view .LVU63
+ 288 0000 AF92      		push r10
+ 289               	.LCFI6:
+ 290               		.cfi_def_cfa_offset 3
+ 291               		.cfi_offset 10, -2
+ 292 0002 BF92      		push r11
+ 293               	.LCFI7:
+ 294               		.cfi_def_cfa_offset 4
+ 295               		.cfi_offset 11, -3
+ 296 0004 CF92      		push r12
+ 297               	.LCFI8:
+ 298               		.cfi_def_cfa_offset 5
+ 299               		.cfi_offset 12, -4
+ 300 0006 DF92      		push r13
+ 301               	.LCFI9:
+ 302               		.cfi_def_cfa_offset 6
+ 303               		.cfi_offset 13, -5
+ 304 0008 EF92      		push r14
+ 305               	.LCFI10:
+ 306               		.cfi_def_cfa_offset 7
+ 307               		.cfi_offset 14, -6
+ 308 000a FF92      		push r15
+ 309               	.LCFI11:
+ 310               		.cfi_def_cfa_offset 8
+ 311               		.cfi_offset 15, -7
+ 312 000c 0F93      		push r16
+ 313               	.LCFI12:
+ 314               		.cfi_def_cfa_offset 9
+ 315               		.cfi_offset 16, -8
+ 316 000e 1F93      		push r17
+ 317               	.LCFI13:
+ 318               		.cfi_def_cfa_offset 10
+ 319               		.cfi_offset 17, -9
+ 320 0010 CF93      		push r28
+ 321               	.LCFI14:
+ 322               		.cfi_def_cfa_offset 11
+ 323               		.cfi_offset 28, -10
+ 324 0012 DF93      		push r29
+ 325               	.LCFI15:
+ 326               		.cfi_def_cfa_offset 12
+ 327               		.cfi_offset 29, -11
+ 328 0014 CDB7      		in r28,__SP_L__
+ 329 0016 DEB7      		in r29,__SP_H__
+ 330               	.LCFI16:
+ 331               		.cfi_def_cfa_register 28
+ 332 0018 6197      		sbiw r28,17
+ 333               	.LCFI17:
+ 334               		.cfi_def_cfa_offset 29
+ 335 001a 0FB6      		in __tmp_reg__,__SREG__
+ 336 001c F894      		cli
+ 337 001e DEBF      		out __SP_H__,r29
+ 338 0020 0FBE      		out __SREG__,__tmp_reg__
+ 339 0022 CDBF      		out __SP_L__,r28
+ 340               	/* prologue: function */
+ 341               	/* frame size = 17 */
+ 342               	/* stack size = 27 */
+ 343               	.L__stack_usage = 27
+ 344 0024 8C01      		movw r16,r24
+ 100:tmk_core/common/action_tapping.c **** 
+ 345               		.loc 1 100 5 is_stmt 1 view .LVU64
+ 100:tmk_core/common/action_tapping.c **** 
+ 346               		.loc 1 100 16 is_stmt 0 view .LVU65
+ 347 0026 85E0      		ldi r24,lo8(5)
+ 348               	.LVL17:
+ 100:tmk_core/common/action_tapping.c **** 
+ 349               		.loc 1 100 16 view .LVU66
+ 350 0028 F801      		movw r30,r16
+ 351 002a DE01      		movw r26,r28
+ 352 002c 1D96      		adiw r26,13
+ 353               		0:
+ 354 002e 0190      		ld r0,Z+
+ 355 0030 0D92      		st X+,r0
+ 356 0032 8A95      		dec r24
+ 357 0034 01F4      		brne 0b
+ 358 0036 F801      		movw r30,r16
+ 359 0038 4081      		ld r20,Z
+ 360               	.LVL18:
+ 100:tmk_core/common/action_tapping.c **** 
+ 361               		.loc 1 100 16 view .LVU67
+ 362 003a 5181      		ldd r21,Z+1
+ 363               	.LVL19:
+ 100:tmk_core/common/action_tapping.c **** 
+ 364               		.loc 1 100 16 view .LVU68
+ 365 003c E280      		ldd r14,Z+2
+ 366               	.LVL20:
+ 103:tmk_core/common/action_tapping.c ****         if (WITHIN_TAPPING_TERM(event)) {
+ 367               		.loc 1 103 5 is_stmt 1 view .LVU69
+ 103:tmk_core/common/action_tapping.c ****         if (WITHIN_TAPPING_TERM(event)) {
+ 368               		.loc 1 103 9 is_stmt 0 view .LVU70
+ 369 003e 80E0      		ldi r24,lo8(tapping_key)
+ 370 0040 C82E      		mov r12,r24
+ 371 0042 80E0      		ldi r24,hi8(tapping_key)
+ 372 0044 D82E      		mov r13,r24
+ 373 0046 6091 0000 		lds r22,tapping_key+3
+ 374 004a 7091 0000 		lds r23,tapping_key+3+1
+ 375               	.LBB23:
+ 376               	.LBI23:
+ 377               		.loc 2 48 20 is_stmt 1 view .LVU71
+ 378               	.LBB24:
+ 379               		.loc 2 48 51 view .LVU72
+ 380               		.loc 2 48 74 is_stmt 0 view .LVU73
+ 381 004e 6115      		cp r22,__zero_reg__
+ 382 0050 7105      		cpc r23,__zero_reg__
+ 383 0052 01F4      		brne .+2
+ 384 0054 00C0      		rjmp .L23
+ 385               	.LBE24:
+ 386               	.LBE23:
+ 103:tmk_core/common/action_tapping.c ****         if (WITHIN_TAPPING_TERM(event)) {
+ 387               		.loc 1 103 9 view .LVU74
+ 388 0056 9091 0000 		lds r25,tapping_key
+ 389 005a 2091 0000 		lds r18,tapping_key+1
+ 390               	.LBB26:
+ 391               	.LBB25:
+ 392               		.loc 2 48 74 view .LVU75
+ 393 005e 892F      		mov r24,r25
+ 394 0060 8223      		and r24,r18
+ 395 0062 8F3F      		cpi r24,lo8(-1)
+ 396 0064 01F4      		brne .+2
+ 397 0066 00C0      		rjmp .L23
+ 398               	.LBE25:
+ 399               	.LBE26:
+ 100:tmk_core/common/action_tapping.c **** 
+ 400               		.loc 1 100 16 discriminator 1 view .LVU76
+ 401 0068 A380      		ldd r10,Z+3
+ 402 006a B480      		ldd r11,Z+4
+ 103:tmk_core/common/action_tapping.c ****         if (WITHIN_TAPPING_TERM(event)) {
+ 403               		.loc 1 103 9 discriminator 1 view .LVU77
+ 404 006c F090 0000 		lds r15,tapping_key+2
+ 405 0070 F501      		movw r30,r10
+ 406 0072 E61B      		sub r30,r22
+ 407 0074 F70B      		sbc r31,r23
+ 408 0076 FF20      		tst r15
+ 409 0078 01F4      		brne .+2
+ 410 007a 00C0      		rjmp .L24
+ 104:tmk_core/common/action_tapping.c ****             if (tapping_key.tap.count == 0) {
+ 411               		.loc 1 104 9 is_stmt 1 view .LVU78
+ 412 007c 8091 0000 		lds r24,tapping_key+5
+ 413 0080 382F      		mov r19,r24
+ 414 0082 307F      		andi r19,lo8(-16)
+ 104:tmk_core/common/action_tapping.c ****             if (tapping_key.tap.count == 0) {
+ 415               		.loc 1 104 12 is_stmt 0 view .LVU79
+ 416 0084 E436      		cpi r30,100
+ 417 0086 F105      		cpc r31,__zero_reg__
+ 418 0088 00F0      		brlo .+2
+ 419 008a 00C0      		rjmp .L25
+ 105:tmk_core/common/action_tapping.c ****                 if (IS_TAPPING_KEY(event.key) && !event.pressed) {
+ 420               		.loc 1 105 13 is_stmt 1 view .LVU80
+ 105:tmk_core/common/action_tapping.c ****                 if (IS_TAPPING_KEY(event.key) && !event.pressed) {
+ 421               		.loc 1 105 16 is_stmt 0 view .LVU81
+ 422 008c 3111      		cpse r19,__zero_reg__
+ 423 008e 00C0      		rjmp .L26
+ 106:tmk_core/common/action_tapping.c ****                     // first tap!
+ 424               		.loc 1 106 17 is_stmt 1 discriminator 1 view .LVU82
+ 425 0090 FE2C      		mov r15,r14
+ 106:tmk_core/common/action_tapping.c ****                     // first tap!
+ 426               		.loc 1 106 21 is_stmt 0 discriminator 1 view .LVU83
+ 427 0092 2513      		cpse r18,r21
+ 428 0094 00C0      		rjmp .L27
+ 106:tmk_core/common/action_tapping.c ****                     // first tap!
+ 429               		.loc 1 106 21 discriminator 2 view .LVU84
+ 430 0096 9413      		cpse r25,r20
+ 431 0098 00C0      		rjmp .L27
+ 106:tmk_core/common/action_tapping.c ****                     // first tap!
+ 432               		.loc 1 106 47 discriminator 3 view .LVU85
+ 433 009a E110      		cpse r14,__zero_reg__
+ 434 009c 00C0      		rjmp .L27
+ 108:tmk_core/common/action_tapping.c ****                     tapping_key.tap.count = 1;
+ 435               		.loc 1 108 57 is_stmt 1 view .LVU86
+ 109:tmk_core/common/action_tapping.c ****                     debug_tapping_key();
+ 436               		.loc 1 109 21 view .LVU87
+ 109:tmk_core/common/action_tapping.c ****                     debug_tapping_key();
+ 437               		.loc 1 109 43 is_stmt 0 view .LVU88
+ 438 009e 8F70      		andi r24,lo8(15)
+ 439 00a0 8061      		ori r24,lo8(16)
+ 440 00a2 8093 0000 		sts tapping_key+5,r24
+ 441               	.LVL21:
+ 110:tmk_core/common/action_tapping.c ****                     process_record(&tapping_key);
+ 442               		.loc 1 110 21 is_stmt 1 view .LVU89
+ 443 00a6 0E94 0000 		call debug_tapping_key
+ 444               	.LVL22:
+ 111:tmk_core/common/action_tapping.c **** 
+ 445               		.loc 1 111 21 view .LVU90
+ 446 00aa C601      		movw r24,r12
+ 447 00ac 0E94 0000 		call process_record
+ 448               	.LVL23:
+ 114:tmk_core/common/action_tapping.c ****                     // enqueue
+ 449               		.loc 1 114 21 view .LVU91
+ 114:tmk_core/common/action_tapping.c ****                     // enqueue
+ 450               		.loc 1 114 31 is_stmt 0 view .LVU92
+ 451 00b0 8091 0000 		lds r24,tapping_key+5
+ 452 00b4 F801      		movw r30,r16
+ 453 00b6 8583      		std Z+5,r24
+ 116:tmk_core/common/action_tapping.c ****                 }
+ 454               		.loc 1 116 21 is_stmt 1 view .LVU93
+ 455               	.LVL24:
+ 456               	.L22:
+ 311:tmk_core/common/action_tapping.c **** 
+ 457               		.loc 1 311 1 is_stmt 0 view .LVU94
+ 458 00b8 8F2D      		mov r24,r15
+ 459               	/* epilogue start */
+ 311:tmk_core/common/action_tapping.c **** 
+ 460               		.loc 1 311 1 view .LVU95
+ 461 00ba 6196      		adiw r28,17
+ 462 00bc 0FB6      		in __tmp_reg__,__SREG__
+ 463 00be F894      		cli
+ 464 00c0 DEBF      		out __SP_H__,r29
+ 465 00c2 0FBE      		out __SREG__,__tmp_reg__
+ 466 00c4 CDBF      		out __SP_L__,r28
+ 467 00c6 DF91      		pop r29
+ 468 00c8 CF91      		pop r28
+ 469 00ca 1F91      		pop r17
+ 470 00cc 0F91      		pop r16
+ 471               	.LVL25:
+ 311:tmk_core/common/action_tapping.c **** 
+ 472               		.loc 1 311 1 view .LVU96
+ 473 00ce FF90      		pop r15
+ 474 00d0 EF90      		pop r14
+ 475               	.LVL26:
+ 311:tmk_core/common/action_tapping.c **** 
+ 476               		.loc 1 311 1 view .LVU97
+ 477 00d2 DF90      		pop r13
+ 478 00d4 CF90      		pop r12
+ 479 00d6 BF90      		pop r11
+ 480 00d8 AF90      		pop r10
+ 481 00da 0895      		ret
+ 482               	.LVL27:
+ 483               	.L27:
+ 143:tmk_core/common/action_tapping.c ****                     // Modifier should be retained till end of this tapping.
+ 484               		.loc 1 143 22 is_stmt 1 view .LVU98
+ 485               	.LBB27:
+ 486               	.LBI27:
+  49:tmk_core/common/keyboard.h **** static inline bool IS_PRESSED(keyevent_t event) { return (!IS_NOEVENT(event) && event.pressed); }
+  50:tmk_core/common/keyboard.h **** static inline bool IS_RELEASED(keyevent_t event) { return (!IS_NOEVENT(event) && !event.pressed); }
+ 487               		.loc 2 50 20 view .LVU99
+ 488               	.LBB28:
+ 489               		.loc 2 50 52 view .LVU100
+ 490               	.LBB29:
+ 491               	.LBI29:
+  48:tmk_core/common/keyboard.h **** static inline bool IS_PRESSED(keyevent_t event) { return (!IS_NOEVENT(event) && event.pressed); }
+ 492               		.loc 2 48 20 view .LVU101
+ 493               	.LBB30:
+  48:tmk_core/common/keyboard.h **** static inline bool IS_PRESSED(keyevent_t event) { return (!IS_NOEVENT(event) && event.pressed); }
+ 494               		.loc 2 48 51 view .LVU102
+  48:tmk_core/common/keyboard.h **** static inline bool IS_PRESSED(keyevent_t event) { return (!IS_NOEVENT(event) && event.pressed); }
+ 495               		.loc 2 48 74 is_stmt 0 view .LVU103
+ 496 00dc AB28      		or r10,r11
+ 497 00de 01F0      		breq .L52
+ 498 00e0 842F      		mov r24,r20
+ 499 00e2 8523      		and r24,r21
+ 500 00e4 8F3F      		cpi r24,lo8(-1)
+ 501 00e6 01F0      		breq .+2
+ 502 00e8 00C0      		rjmp .L30
+ 503               	.L52:
+  48:tmk_core/common/keyboard.h **** static inline bool IS_PRESSED(keyevent_t event) { return (!IS_NOEVENT(event) && event.pressed); }
+ 504               		.loc 2 48 74 view .LVU104
+ 505               	.LBE30:
+ 506               	.LBE29:
+ 507               		.loc 2 50 79 view .LVU105
+ 508 00ea 80E0      		ldi r24,0
+ 509               	.L29:
+ 510               	.LVL28:
+ 511               		.loc 2 50 79 view .LVU106
+ 512               	.LBE28:
+ 513               	.LBE27:
+ 143:tmk_core/common/action_tapping.c ****                     // Modifier should be retained till end of this tapping.
+ 514               		.loc 1 143 25 view .LVU107
+ 515 00ec F82F      		mov r31,r24
+ 516 00ee F170      		andi r31,lo8(1)
+ 517 00f0 DF2E      		mov r13,r31
+ 518 00f2 80FF      		sbrs r24,0
+ 519 00f4 00C0      		rjmp .L31
+ 520               	.LBB32:
+ 521               	.LBI32:
+ 348:tmk_core/common/action_tapping.c ****     for (uint8_t i = waiting_buffer_tail; i != waiting_buffer_head; i = (i + 1) % WAITING_BUFFER_SI
+ 522               		.loc 1 348 6 is_stmt 1 discriminator 1 view .LVU108
+ 523               	.LBE32:
+ 349:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 524               		.loc 1 349 5 discriminator 1 view .LVU109
+ 525               	.LBB35:
+ 526               	.LBB33:
+ 349:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 527               		.loc 1 349 10 discriminator 1 view .LVU110
+ 349:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 528               		.loc 1 349 18 is_stmt 0 discriminator 1 view .LVU111
+ 529 00f6 8091 0000 		lds r24,waiting_buffer_tail
+ 530               	.LVL29:
+ 349:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 531               		.loc 1 349 45 discriminator 1 view .LVU112
+ 532 00fa 2091 0000 		lds r18,waiting_buffer_head
+ 350:tmk_core/common/action_tapping.c ****             return true;
+ 533               		.loc 1 350 13 discriminator 1 view .LVU113
+ 534 00fe 36E0      		ldi r19,lo8(6)
+ 535               	.LVL30:
+ 536               	.L32:
+ 349:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 537               		.loc 1 349 43 is_stmt 1 view .LVU114
+ 349:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 538               		.loc 1 349 5 is_stmt 0 view .LVU115
+ 539 0100 8213      		cpse r24,r18
+ 540 0102 00C0      		rjmp .L34
+ 541               	.LVL31:
+ 349:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 542               		.loc 1 349 5 view .LVU116
+ 543               	.LBE33:
+ 544               	.LBE35:
+ 545               	.LBB36:
+ 145:tmk_core/common/action_tapping.c ****                     switch (action.kind.id) {
+ 546               		.loc 1 145 21 is_stmt 1 view .LVU117
+ 145:tmk_core/common/action_tapping.c ****                     switch (action.kind.id) {
+ 547               		.loc 1 145 39 is_stmt 0 view .LVU118
+ 548 0104 4D87      		std Y+13,r20
+ 549 0106 5E87      		std Y+14,r21
+ 550 0108 8D85      		ldd r24,Y+13
+ 551 010a 9E85      		ldd r25,Y+14
+ 552 010c 0E94 0000 		call layer_switch_get_action
+ 553               	.LVL32:
+ 146:tmk_core/common/action_tapping.c ****                         case ACT_LMODS:
+ 554               		.loc 1 146 21 is_stmt 1 view .LVU119
+ 146:tmk_core/common/action_tapping.c ****                         case ACT_LMODS:
+ 555               		.loc 1 146 40 is_stmt 0 view .LVU120
+ 556 0110 292F      		mov r18,r25
+ 557 0112 2295      		swap r18
+ 558 0114 2F70      		andi r18,lo8(15)
+ 146:tmk_core/common/action_tapping.c ****                         case ACT_LMODS:
+ 559               		.loc 1 146 21 view .LVU121
+ 560 0116 2230      		cpi r18,lo8(2)
+ 561 0118 00F0      		brlo .L50
+ 146:tmk_core/common/action_tapping.c ****                         case ACT_LMODS:
+ 562               		.loc 1 146 21 view .LVU122
+ 563 011a 2430      		cpi r18,lo8(4)
+ 564 011c 00F4      		brsh .L38
+ 154:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 565               		.loc 1 154 29 is_stmt 1 view .LVU123
+ 154:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 566               		.loc 1 154 33 is_stmt 0 view .LVU124
+ 567 011e 9F70      		andi r25,lo8(15)
+ 568               	.LVL33:
+ 154:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 569               		.loc 1 154 32 view .LVU125
+ 570 0120 01F0      		breq .L39
+ 154:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 571               		.loc 1 154 68 discriminator 1 view .LVU126
+ 572 0122 F801      		movw r30,r16
+ 573 0124 9581      		ldd r25,Z+5
+ 574 0126 907F      		andi r25,lo8(-16)
+ 154:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 575               		.loc 1 154 49 discriminator 1 view .LVU127
+ 576 0128 01F4      		brne .L39
+ 577               	.LVL34:
+ 578               	.L56:
+ 149:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 579               		.loc 1 149 77 view .LVU128
+ 580 012a D12C      		mov r13,__zero_reg__
+ 581 012c 00C0      		rjmp .L37
+ 582               	.LVL35:
+ 583               	.L34:
+ 149:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 584               		.loc 1 149 77 view .LVU129
+ 585               	.LBE36:
+ 586               	.LBB37:
+ 587               	.LBB34:
+ 350:tmk_core/common/action_tapping.c ****             return true;
+ 588               		.loc 1 350 9 is_stmt 1 view .LVU130
+ 350:tmk_core/common/action_tapping.c ****             return true;
+ 589               		.loc 1 350 13 is_stmt 0 view .LVU131
+ 590 012e 90E0      		ldi r25,0
+ 591 0130 389F      		mul r19,r24
+ 592 0132 F001      		movw r30,r0
+ 593 0134 399F      		mul r19,r25
+ 594 0136 F00D      		add r31,r0
+ 595 0138 1124      		clr __zero_reg__
+ 596 013a E050      		subi r30,lo8(-(waiting_buffer))
+ 597 013c F040      		sbci r31,hi8(-(waiting_buffer))
+ 350:tmk_core/common/action_tapping.c ****             return true;
+ 598               		.loc 1 350 12 view .LVU132
+ 599 013e 6181      		ldd r22,Z+1
+ 600 0140 6513      		cpse r22,r21
+ 601 0142 00C0      		rjmp .L33
+ 350:tmk_core/common/action_tapping.c ****             return true;
+ 602               		.loc 1 350 13 view .LVU133
+ 603 0144 6081      		ld r22,Z
+ 604 0146 6413      		cpse r22,r20
+ 605 0148 00C0      		rjmp .L33
+ 350:tmk_core/common/action_tapping.c ****             return true;
+ 606               		.loc 1 350 59 view .LVU134
+ 607 014a 6281      		ldd r22,Z+2
+ 608 014c 6E11      		cpse r22,r14
+ 609 014e 00C0      		rjmp .L31
+ 610               	.L33:
+ 349:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 611               		.loc 1 349 69 is_stmt 1 view .LVU135
+ 349:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 612               		.loc 1 349 76 is_stmt 0 view .LVU136
+ 613 0150 0196      		adiw r24,1
+ 614               	.LVL36:
+ 349:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 615               		.loc 1 349 71 view .LVU137
+ 616 0152 8770      		andi r24,lo8(7)
+ 349:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 617               		.loc 1 349 71 view .LVU138
+ 618 0154 00C0      		rjmp .L32
+ 619               	.LVL37:
+ 620               	.L50:
+ 349:tmk_core/common/action_tapping.c ****         if (KEYEQ(event.key, waiting_buffer[i].event.key) && event.pressed != waiting_buffer[i].eve
+ 621               		.loc 1 349 71 view .LVU139
+ 622               	.LBE34:
+ 623               	.LBE37:
+ 624               	.LBB38:
+ 149:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 625               		.loc 1 149 29 is_stmt 1 view .LVU140
+ 149:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 626               		.loc 1 149 33 is_stmt 0 view .LVU141
+ 627 0156 9F70      		andi r25,lo8(15)
+ 628               	.LVL38:
+ 149:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 629               		.loc 1 149 32 view .LVU142
+ 630 0158 01F0      		breq .L39
+ 149:tmk_core/common/action_tapping.c ****                             if (IS_MOD(action.key.code)) return false;
+ 631               		.loc 1 149 49 discriminator 1 view .LVU143
+ 632 015a 8823      		tst r24
+ 633 015c 01F0      		breq .L56
+ 634               	.L39:
+ 155:tmk_core/common/action_tapping.c ****                             break;
+ 635               		.loc 1 155 29 is_stmt 1 view .LVU144
+ 155:tmk_core/common/action_tapping.c ****                             break;
+ 636               		.loc 1 155 33 is_stmt 0 view .LVU145
+ 637 015e 805E      		subi r24,lo8(-(32))
+ 638               	.LVL39:
+ 155:tmk_core/common/action_tapping.c ****                             break;
+ 639               		.loc 1 155 32 view .LVU146
+ 640 0160 8830      		cpi r24,lo8(8)
+ 641 0162 00F0      		brlo .L56
+ 642               	.LVL40:
+ 643               	.L38:
+ 159:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 644               		.loc 1 159 86 is_stmt 1 view .LVU147
+ 160:tmk_core/common/action_tapping.c ****                     return true;
+ 645               		.loc 1 160 21 view .LVU148
+ 646 0164 C801      		movw r24,r16
+ 647               	.LVL41:
+ 160:tmk_core/common/action_tapping.c ****                     return true;
+ 648               		.loc 1 160 21 is_stmt 0 view .LVU149
+ 649 0166 0E94 0000 		call process_record
+ 650               	.LVL42:
+ 161:tmk_core/common/action_tapping.c ****                 } else {
+ 651               		.loc 1 161 21 is_stmt 1 view .LVU150
+ 652               	.L37:
+ 161:tmk_core/common/action_tapping.c ****                 } else {
+ 653               		.loc 1 161 21 is_stmt 0 view .LVU151
+ 654 016a FD2C      		mov r15,r13
+ 655 016c 00C0      		rjmp .L22
+ 656               	.LVL43:
+ 657               	.L31:
+ 161:tmk_core/common/action_tapping.c ****                 } else {
+ 658               		.loc 1 161 21 view .LVU152
+ 659               	.LBE38:
+ 164:tmk_core/common/action_tapping.c ****                         tapping_key.tap.interrupted = true;
+ 660               		.loc 1 164 21 is_stmt 1 view .LVU153
+ 164:tmk_core/common/action_tapping.c ****                         tapping_key.tap.interrupted = true;
+ 661               		.loc 1 164 24 is_stmt 0 view .LVU154
+ 662 016e EE20      		tst r14
+ 663 0170 01F4      		brne .+2
+ 664 0172 00C0      		rjmp .L22
+ 165:tmk_core/common/action_tapping.c ****                     }
+ 665               		.loc 1 165 25 is_stmt 1 view .LVU155
+ 165:tmk_core/common/action_tapping.c ****                     }
+ 666               		.loc 1 165 53 is_stmt 0 view .LVU156
+ 667 0174 8091 0000 		lds r24,tapping_key+5
+ 668 0178 8160      		ori r24,lo8(1<<0)
+ 669 017a 8093 0000 		sts tapping_key+5,r24
+ 670               	.LVL44:
+ 671               	.L100:
+ 212:tmk_core/common/action_tapping.c ****             } else {
+ 672               		.loc 1 212 17 is_stmt 1 view .LVU157
+ 212:tmk_core/common/action_tapping.c ****             } else {
+ 673               		.loc 1 212 24 is_stmt 0 view .LVU158
+ 674 017e F12C      		mov r15,__zero_reg__
+ 675 0180 00C0      		rjmp .L22
+ 676               	.LVL45:
+ 677               	.L26:
+ 173:tmk_core/common/action_tapping.c ****                     debug("Tapping: Tap release(");
+ 678               		.loc 1 173 17 is_stmt 1 discriminator 1 view .LVU159
+ 173:tmk_core/common/action_tapping.c ****                     debug("Tapping: Tap release(");
+ 679               		.loc 1 173 21 is_stmt 0 discriminator 1 view .LVU160
+ 680 0182 2513      		cpse r18,r21
+ 681 0184 00C0      		rjmp .L40
+ 173:tmk_core/common/action_tapping.c ****                     debug("Tapping: Tap release(");
+ 682               		.loc 1 173 21 discriminator 2 view .LVU161
+ 683 0186 9413      		cpse r25,r20
+ 684 0188 00C0      		rjmp .L40
+ 173:tmk_core/common/action_tapping.c ****                     debug("Tapping: Tap release(");
+ 685               		.loc 1 173 47 discriminator 3 view .LVU162
+ 686 018a E110      		cpse r14,__zero_reg__
+ 687 018c 00C0      		rjmp .L40
+ 174:tmk_core/common/action_tapping.c ****                     debug_dec(tapping_key.tap.count);
+ 688               		.loc 1 174 51 is_stmt 1 view .LVU163
+ 175:tmk_core/common/action_tapping.c ****                     debug(")\n");
+ 689               		.loc 1 175 53 view .LVU164
+ 176:tmk_core/common/action_tapping.c ****                     keyp->tap = tapping_key.tap;
+ 690               		.loc 1 176 33 view .LVU165
+ 177:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 691               		.loc 1 177 21 view .LVU166
+ 177:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 692               		.loc 1 177 31 is_stmt 0 view .LVU167
+ 693 018e F801      		movw r30,r16
+ 694 0190 8583      		std Z+5,r24
+ 178:tmk_core/common/action_tapping.c ****                     tapping_key = *keyp;
+ 695               		.loc 1 178 21 is_stmt 1 view .LVU168
+ 696 0192 C801      		movw r24,r16
+ 697 0194 0E94 0000 		call process_record
+ 698               	.LVL46:
+ 179:tmk_core/common/action_tapping.c ****                     debug_tapping_key();
+ 699               		.loc 1 179 21 view .LVU169
+ 179:tmk_core/common/action_tapping.c ****                     debug_tapping_key();
+ 700               		.loc 1 179 33 is_stmt 0 view .LVU170
+ 701 0198 86E0      		ldi r24,lo8(6)
+ 702 019a F801      		movw r30,r16
+ 703 019c A0E0      		ldi r26,lo8(tapping_key)
+ 704 019e B0E0      		ldi r27,hi8(tapping_key)
+ 705               		0:
+ 706 01a0 0190      		ld r0,Z+
+ 707 01a2 0D92      		st X+,r0
+ 708 01a4 8A95      		dec r24
+ 709 01a6 01F4      		brne 0b
+ 180:tmk_core/common/action_tapping.c ****                     return true;
+ 710               		.loc 1 180 21 is_stmt 1 view .LVU171
+ 711               	.LVL47:
+ 712               	.L99:
+ 304:tmk_core/common/action_tapping.c ****             return true;
+ 713               		.loc 1 304 13 view .LVU172
+ 714 01a8 0E94 0000 		call debug_tapping_key
+ 715               	.LVL48:
+ 305:tmk_core/common/action_tapping.c ****         } else {
+ 716               		.loc 1 305 13 view .LVU173
+ 305:tmk_core/common/action_tapping.c ****         } else {
+ 717               		.loc 1 305 20 is_stmt 0 view .LVU174
+ 718 01ac 00C0      		rjmp .L22
+ 719               	.LVL49:
+ 720               	.L40:
+ 182:tmk_core/common/action_tapping.c ****                     if (tapping_key.tap.count > 1) {
+ 721               		.loc 1 182 24 is_stmt 1 view .LVU175
+ 182:tmk_core/common/action_tapping.c ****                     if (tapping_key.tap.count > 1) {
+ 722               		.loc 1 182 28 is_stmt 0 view .LVU176
+ 723 01ae 4D87      		std Y+13,r20
+ 724 01b0 5E87      		std Y+14,r21
+ 725 01b2 8D85      		ldd r24,Y+13
+ 726 01b4 9E85      		ldd r25,Y+14
+ 727 01b6 0E94 0000 		call is_tap_key
+ 728               	.LVL50:
+ 182:tmk_core/common/action_tapping.c ****                     if (tapping_key.tap.count > 1) {
+ 729               		.loc 1 182 27 view .LVU177
+ 730 01ba 8823      		tst r24
+ 731 01bc 01F0      		breq .L48
+ 182:tmk_core/common/action_tapping.c ****                     if (tapping_key.tap.count > 1) {
+ 732               		.loc 1 182 50 discriminator 1 view .LVU178
+ 733 01be EE20      		tst r14
+ 734 01c0 01F0      		breq .L48
+ 183:tmk_core/common/action_tapping.c ****                         debug("Tapping: Start new tap with releasing last tap(>1).\n");
+ 735               		.loc 1 183 21 is_stmt 1 view .LVU179
+ 183:tmk_core/common/action_tapping.c ****                         debug("Tapping: Start new tap with releasing last tap(>1).\n");
+ 736               		.loc 1 183 40 is_stmt 0 view .LVU180
+ 737 01c2 8091 0000 		lds r24,tapping_key+5
+ 183:tmk_core/common/action_tapping.c ****                         debug("Tapping: Start new tap with releasing last tap(>1).\n");
+ 738               		.loc 1 183 24 view .LVU181
+ 739 01c6 8032      		cpi r24,lo8(32)
+ 740 01c8 00F0      		brlo .L43
+ 184:tmk_core/common/action_tapping.c ****                         // unregister key
+ 741               		.loc 1 184 87 is_stmt 1 view .LVU182
+ 186:tmk_core/common/action_tapping.c ****                     } else {
+ 742               		.loc 1 186 25 view .LVU183
+ 186:tmk_core/common/action_tapping.c ****                     } else {
+ 743               		.loc 1 186 54 is_stmt 0 view .LVU184
+ 744 01ca 2091 0000 		lds r18,tapping_key
+ 745 01ce 3091 0000 		lds r19,tapping_key+1
+ 746 01d2 3887      		std Y+8,r19
+ 747 01d4 2F83      		std Y+7,r18
+ 748 01d6 1986      		std Y+9,__zero_reg__
+ 749 01d8 BB86      		std Y+11,r11
+ 750 01da AA86      		std Y+10,r10
+ 751 01dc 8C87      		std Y+12,r24
+ 186:tmk_core/common/action_tapping.c ****                     } else {
+ 752               		.loc 1 186 25 view .LVU185
+ 753 01de CE01      		movw r24,r28
+ 754 01e0 0796      		adiw r24,7
+ 755               	.L98:
+ 186:tmk_core/common/action_tapping.c ****                     } else {
+ 756               		.loc 1 186 25 view .LVU186
+ 757 01e2 0E94 0000 		call process_record
+ 758               	.LVL51:
+ 759               	.L43:
+ 188:tmk_core/common/action_tapping.c ****                     }
+ 760               		.loc 1 188 69 is_stmt 1 view .LVU187
+ 190:tmk_core/common/action_tapping.c ****                     waiting_buffer_scan_tap();
+ 761               		.loc 1 190 21 view .LVU188
+ 190:tmk_core/common/action_tapping.c ****                     waiting_buffer_scan_tap();
+ 762               		.loc 1 190 33 is_stmt 0 view .LVU189
+ 763 01e6 86E0      		ldi r24,lo8(6)
+ 764 01e8 F801      		movw r30,r16
+ 765 01ea A0E0      		ldi r26,lo8(tapping_key)
+ 766 01ec B0E0      		ldi r27,hi8(tapping_key)
+ 767               		0:
+ 768 01ee 0190      		ld r0,Z+
+ 769 01f0 0D92      		st X+,r0
+ 770 01f2 8A95      		dec r24
+ 771 01f4 01F4      		brne 0b
+ 191:tmk_core/common/action_tapping.c ****                     debug_tapping_key();
+ 772               		.loc 1 191 21 is_stmt 1 view .LVU190
+ 773 01f6 0E94 0000 		call waiting_buffer_scan_tap
+ 774               	.LVL52:
+ 192:tmk_core/common/action_tapping.c ****                     return true;
+ 775               		.loc 1 192 21 view .LVU191
+ 776 01fa 0E94 0000 		call debug_tapping_key
+ 777               	.LVL53:
+ 193:tmk_core/common/action_tapping.c ****                 } else {
+ 778               		.loc 1 193 21 view .LVU192
+ 779               	.L101:
+ 199:tmk_core/common/action_tapping.c ****                 }
+ 780               		.loc 1 199 21 view .LVU193
+ 199:tmk_core/common/action_tapping.c ****                 }
+ 781               		.loc 1 199 28 is_stmt 0 view .LVU194
+ 782 01fe FF24      		clr r15
+ 783 0200 F394      		inc r15
+ 784 0202 00C0      		rjmp .L22
+ 785               	.L48:
+ 195:tmk_core/common/action_tapping.c ****                         debug("Tapping: key event while last tap(>0).\n");
+ 786               		.loc 1 195 21 is_stmt 1 view .LVU195
+ 196:tmk_core/common/action_tapping.c ****                     }
+ 787               		.loc 1 196 74 view .LVU196
+ 198:tmk_core/common/action_tapping.c ****                     return true;
+ 788               		.loc 1 198 21 view .LVU197
+ 789 0204 C801      		movw r24,r16
+ 790 0206 0E94 0000 		call process_record
+ 791               	.LVL54:
+ 792 020a 00C0      		rjmp .L101
+ 793               	.LVL55:
+ 794               	.L25:
+ 205:tmk_core/common/action_tapping.c ****                 debug("Tapping: End. Timeout. Not tap(0): ");
+ 795               		.loc 1 205 13 view .LVU198
+ 205:tmk_core/common/action_tapping.c ****                 debug("Tapping: End. Timeout. Not tap(0): ");
+ 796               		.loc 1 205 16 is_stmt 0 view .LVU199
+ 797 020c 3111      		cpse r19,__zero_reg__
+ 798 020e 00C0      		rjmp .L44
+ 206:tmk_core/common/action_tapping.c ****                 debug_event(event);
+ 799               		.loc 1 206 61 is_stmt 1 view .LVU200
+ 207:tmk_core/common/action_tapping.c ****                 debug("\n");
+ 800               		.loc 1 207 17 view .LVU201
+ 207:tmk_core/common/action_tapping.c ****                 debug("\n");
+ 801               		.loc 1 207 17 is_stmt 0 view .LVU202
+ 802 0210 7A2D      		mov r23,r10
+ 803 0212 B98A      		std Y+17,r11
+ 804 0214 A88A      		std Y+16,r10
+ 805 0216 6E2D      		mov r22,r14
+ 806 0218 8989      		ldd r24,Y+17
+ 807 021a 0E94 0000 		call debug_event
+ 808               	.LVL56:
+ 208:tmk_core/common/action_tapping.c ****                 process_record(&tapping_key);
+ 809               		.loc 1 208 28 is_stmt 1 view .LVU203
+ 209:tmk_core/common/action_tapping.c ****                 tapping_key = (keyrecord_t){};
+ 810               		.loc 1 209 17 view .LVU204
+ 811 021e 80E0      		ldi r24,lo8(tapping_key)
+ 812 0220 90E0      		ldi r25,hi8(tapping_key)
+ 813 0222 0E94 0000 		call process_record
+ 814               	.LVL57:
+ 210:tmk_core/common/action_tapping.c ****                 debug_tapping_key();
+ 815               		.loc 1 210 17 view .LVU205
+ 210:tmk_core/common/action_tapping.c ****                 debug_tapping_key();
+ 816               		.loc 1 210 29 is_stmt 0 view .LVU206
+ 817 0226 86E0      		ldi r24,lo8(6)
+ 818 0228 F601      		movw r30,r12
+ 819               		0:
+ 820 022a 1192      		st Z+,__zero_reg__
+ 821 022c 8A95      		dec r24
+ 822 022e 01F4      		brne 0b
+ 211:tmk_core/common/action_tapping.c ****                 return false;
+ 823               		.loc 1 211 17 is_stmt 1 view .LVU207
+ 824 0230 0E94 0000 		call debug_tapping_key
+ 825               	.LVL58:
+ 826 0234 00C0      		rjmp .L100
+ 827               	.LVL59:
+ 828               	.L44:
+ 214:tmk_core/common/action_tapping.c ****                     debug("Tapping: End. last timeout tap release(>0).");
+ 829               		.loc 1 214 17 discriminator 1 view .LVU208
+ 214:tmk_core/common/action_tapping.c ****                     debug("Tapping: End. last timeout tap release(>0).");
+ 830               		.loc 1 214 21 is_stmt 0 discriminator 1 view .LVU209
+ 831 0236 2513      		cpse r18,r21
+ 832 0238 00C0      		rjmp .L45
+ 214:tmk_core/common/action_tapping.c ****                     debug("Tapping: End. last timeout tap release(>0).");
+ 833               		.loc 1 214 21 discriminator 2 view .LVU210
+ 834 023a 9413      		cpse r25,r20
+ 835 023c 00C0      		rjmp .L45
+ 214:tmk_core/common/action_tapping.c ****                     debug("Tapping: End. last timeout tap release(>0).");
+ 836               		.loc 1 214 47 discriminator 3 view .LVU211
+ 837 023e E110      		cpse r14,__zero_reg__
+ 838 0240 00C0      		rjmp .L45
+ 215:tmk_core/common/action_tapping.c ****                     keyp->tap = tapping_key.tap;
+ 839               		.loc 1 215 73 is_stmt 1 view .LVU212
+ 216:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 840               		.loc 1 216 21 view .LVU213
+ 216:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 841               		.loc 1 216 31 is_stmt 0 view .LVU214
+ 842 0242 F801      		movw r30,r16
+ 843 0244 8583      		std Z+5,r24
+ 217:tmk_core/common/action_tapping.c ****                     tapping_key = (keyrecord_t){};
+ 844               		.loc 1 217 21 is_stmt 1 view .LVU215
+ 845 0246 C801      		movw r24,r16
+ 846 0248 0E94 0000 		call process_record
+ 847               	.LVL60:
+ 218:tmk_core/common/action_tapping.c ****                     return true;
+ 848               		.loc 1 218 21 view .LVU216
+ 218:tmk_core/common/action_tapping.c ****                     return true;
+ 849               		.loc 1 218 33 is_stmt 0 view .LVU217
+ 850 024c 86E0      		ldi r24,lo8(6)
+ 851 024e F601      		movw r30,r12
+ 852               		0:
+ 853 0250 1192      		st Z+,__zero_reg__
+ 854 0252 8A95      		dec r24
+ 855 0254 01F4      		brne 0b
+ 219:tmk_core/common/action_tapping.c ****                 } else if (is_tap_key(event.key) && event.pressed) {
+ 856               		.loc 1 219 21 is_stmt 1 view .LVU218
+ 219:tmk_core/common/action_tapping.c ****                 } else if (is_tap_key(event.key) && event.pressed) {
+ 857               		.loc 1 219 28 is_stmt 0 view .LVU219
+ 858 0256 00C0      		rjmp .L22
+ 859               	.LVL61:
+ 860               	.L45:
+ 220:tmk_core/common/action_tapping.c ****                     if (tapping_key.tap.count > 1) {
+ 861               		.loc 1 220 24 is_stmt 1 view .LVU220
+ 220:tmk_core/common/action_tapping.c ****                     if (tapping_key.tap.count > 1) {
+ 862               		.loc 1 220 28 is_stmt 0 view .LVU221
+ 863 0258 4D87      		std Y+13,r20
+ 864 025a 5E87      		std Y+14,r21
+ 865 025c 8D85      		ldd r24,Y+13
+ 866 025e 9E85      		ldd r25,Y+14
+ 867 0260 0E94 0000 		call is_tap_key
+ 868               	.LVL62:
+ 220:tmk_core/common/action_tapping.c ****                     if (tapping_key.tap.count > 1) {
+ 869               		.loc 1 220 27 view .LVU222
+ 870 0264 8823      		tst r24
+ 871 0266 01F0      		breq .L48
+ 220:tmk_core/common/action_tapping.c ****                     if (tapping_key.tap.count > 1) {
+ 872               		.loc 1 220 50 discriminator 1 view .LVU223
+ 873 0268 EE20      		tst r14
+ 874 026a 01F0      		breq .L48
+ 221:tmk_core/common/action_tapping.c ****                         debug("Tapping: Start new tap with releasing last timeout tap(>1).\n");
+ 875               		.loc 1 221 21 is_stmt 1 view .LVU224
+ 221:tmk_core/common/action_tapping.c ****                         debug("Tapping: Start new tap with releasing last timeout tap(>1).\n");
+ 876               		.loc 1 221 40 is_stmt 0 view .LVU225
+ 877 026c 8091 0000 		lds r24,tapping_key+5
+ 221:tmk_core/common/action_tapping.c ****                         debug("Tapping: Start new tap with releasing last timeout tap(>1).\n");
+ 878               		.loc 1 221 24 view .LVU226
+ 879 0270 8032      		cpi r24,lo8(32)
+ 880 0272 00F4      		brsh .+2
+ 881 0274 00C0      		rjmp .L43
+ 222:tmk_core/common/action_tapping.c ****                         // unregister key
+ 882               		.loc 1 222 95 is_stmt 1 view .LVU227
+ 224:tmk_core/common/action_tapping.c ****                     } else {
+ 883               		.loc 1 224 25 view .LVU228
+ 224:tmk_core/common/action_tapping.c ****                     } else {
+ 884               		.loc 1 224 54 is_stmt 0 view .LVU229
+ 885 0276 2091 0000 		lds r18,tapping_key
+ 886 027a 3091 0000 		lds r19,tapping_key+1
+ 887 027e 3A83      		std Y+2,r19
+ 888 0280 2983      		std Y+1,r18
+ 889 0282 1B82      		std Y+3,__zero_reg__
+ 890 0284 BD82      		std Y+5,r11
+ 891 0286 AC82      		std Y+4,r10
+ 892 0288 8E83      		std Y+6,r24
+ 224:tmk_core/common/action_tapping.c ****                     } else {
+ 893               		.loc 1 224 25 view .LVU230
+ 894 028a CE01      		movw r24,r28
+ 895 028c 0196      		adiw r24,1
+ 896 028e 00C0      		rjmp .L98
+ 897               	.LVL63:
+ 898               	.L24:
+ 241:tmk_core/common/action_tapping.c ****         if (WITHIN_TAPPING_TERM(event)) {
+ 899               		.loc 1 241 12 is_stmt 1 discriminator 1 view .LVU231
+ 242:tmk_core/common/action_tapping.c ****             if (event.pressed) {
+ 900               		.loc 1 242 9 discriminator 1 view .LVU232
+ 242:tmk_core/common/action_tapping.c ****             if (event.pressed) {
+ 901               		.loc 1 242 12 is_stmt 0 discriminator 1 view .LVU233
+ 902 0290 E436      		cpi r30,100
+ 903 0292 F105      		cpc r31,__zero_reg__
+ 904 0294 00F4      		brsh .L47
+ 243:tmk_core/common/action_tapping.c ****                 if (IS_TAPPING_KEY(event.key)) {
+ 905               		.loc 1 243 13 is_stmt 1 view .LVU234
+ 243:tmk_core/common/action_tapping.c ****                 if (IS_TAPPING_KEY(event.key)) {
+ 906               		.loc 1 243 22 is_stmt 0 view .LVU235
+ 907 0296 FE2C      		mov r15,r14
+ 243:tmk_core/common/action_tapping.c ****                 if (IS_TAPPING_KEY(event.key)) {
+ 908               		.loc 1 243 16 view .LVU236
+ 909 0298 EE20      		tst r14
+ 910 029a 01F4      		brne .+2
+ 911 029c 00C0      		rjmp .L48
+ 244:tmk_core/common/action_tapping.c **** //#    ifndef TAPPING_FORCE_HOLD
+ 912               		.loc 1 244 17 is_stmt 1 discriminator 1 view .LVU237
+ 244:tmk_core/common/action_tapping.c **** //#    ifndef TAPPING_FORCE_HOLD
+ 913               		.loc 1 244 21 is_stmt 0 discriminator 1 view .LVU238
+ 914 029e 2513      		cpse r18,r21
+ 915 02a0 00C0      		rjmp .L49
+ 244:tmk_core/common/action_tapping.c **** //#    ifndef TAPPING_FORCE_HOLD
+ 916               		.loc 1 244 21 discriminator 2 view .LVU239
+ 917 02a2 9413      		cpse r25,r20
+ 918 02a4 00C0      		rjmp .L49
+ 265:tmk_core/common/action_tapping.c ****                     return true;
+ 919               		.loc 1 265 21 is_stmt 1 view .LVU240
+ 265:tmk_core/common/action_tapping.c ****                     return true;
+ 920               		.loc 1 265 33 is_stmt 0 view .LVU241
+ 921 02a6 86E0      		ldi r24,lo8(6)
+ 922 02a8 F801      		movw r30,r16
+ 923 02aa A0E0      		ldi r26,lo8(tapping_key)
+ 924 02ac B0E0      		ldi r27,hi8(tapping_key)
+ 925               		0:
+ 926 02ae 0190      		ld r0,Z+
+ 927 02b0 0D92      		st X+,r0
+ 928 02b2 8A95      		dec r24
+ 929 02b4 01F4      		brne 0b
+ 266:tmk_core/common/action_tapping.c ****                 } else if (is_tap_key(event.key)) {
+ 930               		.loc 1 266 21 is_stmt 1 view .LVU242
+ 266:tmk_core/common/action_tapping.c ****                 } else if (is_tap_key(event.key)) {
+ 931               		.loc 1 266 28 is_stmt 0 view .LVU243
+ 932 02b6 00C0      		rjmp .L22
+ 933               	.L49:
+ 267:tmk_core/common/action_tapping.c ****                     // Sequential tap can be interfered with other tap key.
+ 934               		.loc 1 267 24 is_stmt 1 view .LVU244
+ 267:tmk_core/common/action_tapping.c ****                     // Sequential tap can be interfered with other tap key.
+ 935               		.loc 1 267 28 is_stmt 0 view .LVU245
+ 936 02b8 4D87      		std Y+13,r20
+ 937 02ba 5E87      		std Y+14,r21
+ 938 02bc 8D85      		ldd r24,Y+13
+ 939 02be 9E85      		ldd r25,Y+14
+ 940 02c0 0E94 0000 		call is_tap_key
+ 941               	.LVL64:
+ 267:tmk_core/common/action_tapping.c ****                     // Sequential tap can be interfered with other tap key.
+ 942               		.loc 1 267 27 view .LVU246
+ 943 02c4 8111      		cpse r24,__zero_reg__
+ 944 02c6 00C0      		rjmp .L43
+ 277:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 945               		.loc 1 277 21 is_stmt 1 view .LVU247
+ 277:tmk_core/common/action_tapping.c ****                     process_record(keyp);
+ 946               		.loc 1 277 49 is_stmt 0 view .LVU248
+ 947 02c8 8091 0000 		lds r24,tapping_key+5
+ 948 02cc 8160      		ori r24,lo8(1<<0)
+ 949 02ce 8093 0000 		sts tapping_key+5,r24
+ 278:tmk_core/common/action_tapping.c ****                     return true;
+ 950               		.loc 1 278 21 is_stmt 1 view .LVU249
+ 951 02d2 C801      		movw r24,r16
+ 952 02d4 0E94 0000 		call process_record
+ 953               	.LVL65:
+ 279:tmk_core/common/action_tapping.c ****                 }
+ 954               		.loc 1 279 21 view .LVU250
+ 279:tmk_core/common/action_tapping.c ****                 }
+ 955               		.loc 1 279 28 is_stmt 0 view .LVU251
+ 956 02d8 00C0      		rjmp .L22
+ 957               	.LVL66:
+ 958               	.L47:
+ 289:tmk_core/common/action_tapping.c ****             debug_event(event);
+ 959               		.loc 1 289 70 is_stmt 1 view .LVU252
+ 290:tmk_core/common/action_tapping.c ****             debug("\n");
+ 960               		.loc 1 290 13 view .LVU253
+ 290:tmk_core/common/action_tapping.c ****             debug("\n");
+ 961               		.loc 1 290 13 is_stmt 0 view .LVU254
+ 962 02da 7A2D      		mov r23,r10
+ 963 02dc B98A      		std Y+17,r11
+ 964 02de A88A      		std Y+16,r10
+ 965 02e0 6E2D      		mov r22,r14
+ 966 02e2 8989      		ldd r24,Y+17
+ 967 02e4 0E94 0000 		call debug_event
+ 968               	.LVL67:
+ 291:tmk_core/common/action_tapping.c ****             tapping_key = (keyrecord_t){};
+ 969               		.loc 1 291 24 is_stmt 1 view .LVU255
+ 292:tmk_core/common/action_tapping.c ****             debug_tapping_key();
+ 970               		.loc 1 292 13 view .LVU256
+ 292:tmk_core/common/action_tapping.c ****             debug_tapping_key();
+ 971               		.loc 1 292 25 is_stmt 0 view .LVU257
+ 972 02e8 86E0      		ldi r24,lo8(6)
+ 973 02ea F601      		movw r30,r12
+ 974               		0:
+ 975 02ec 1192      		st Z+,__zero_reg__
+ 976 02ee 8A95      		dec r24
+ 977 02f0 01F4      		brne 0b
+ 293:tmk_core/common/action_tapping.c ****             return false;
+ 978               		.loc 1 293 13 is_stmt 1 view .LVU258
+ 979 02f2 00C0      		rjmp .L99
+ 980               	.LVL68:
+ 981               	.L23:
+ 299:tmk_core/common/action_tapping.c ****             debug("Tapping: Start(Press tap key).\n");
+ 982               		.loc 1 299 9 view .LVU259
+ 299:tmk_core/common/action_tapping.c ****             debug("Tapping: Start(Press tap key).\n");
+ 983               		.loc 1 299 12 is_stmt 0 view .LVU260
+ 984 02f4 EE20      		tst r14
+ 985 02f6 01F4      		brne .+2
+ 986 02f8 00C0      		rjmp .L48
+ 299:tmk_core/common/action_tapping.c ****             debug("Tapping: Start(Press tap key).\n");
+ 987               		.loc 1 299 30 discriminator 1 view .LVU261
+ 988 02fa 4D87      		std Y+13,r20
+ 989 02fc 5E87      		std Y+14,r21
+ 990 02fe 8D85      		ldd r24,Y+13
+ 991 0300 9E85      		ldd r25,Y+14
+ 992 0302 0E94 0000 		call is_tap_key
+ 993               	.LVL69:
+ 299:tmk_core/common/action_tapping.c ****             debug("Tapping: Start(Press tap key).\n");
+ 994               		.loc 1 299 30 discriminator 1 view .LVU262
+ 995 0306 F82E      		mov r15,r24
+ 299:tmk_core/common/action_tapping.c ****             debug("Tapping: Start(Press tap key).\n");
+ 996               		.loc 1 299 27 discriminator 1 view .LVU263
+ 997 0308 8823      		tst r24
+ 998 030a 01F4      		brne .+2
+ 999 030c 00C0      		rjmp .L48
+ 300:tmk_core/common/action_tapping.c ****             tapping_key = *keyp;
+ 1000               		.loc 1 300 54 is_stmt 1 view .LVU264
+ 301:tmk_core/common/action_tapping.c ****             process_record_tap_hint(&tapping_key);
+ 1001               		.loc 1 301 13 view .LVU265
+ 301:tmk_core/common/action_tapping.c ****             process_record_tap_hint(&tapping_key);
+ 1002               		.loc 1 301 25 is_stmt 0 view .LVU266
+ 1003 030e 86E0      		ldi r24,lo8(6)
+ 1004 0310 F801      		movw r30,r16
+ 1005 0312 A0E0      		ldi r26,lo8(tapping_key)
+ 1006 0314 B0E0      		ldi r27,hi8(tapping_key)
+ 1007               		0:
+ 1008 0316 0190      		ld r0,Z+
+ 1009 0318 0D92      		st X+,r0
+ 1010 031a 8A95      		dec r24
+ 1011 031c 01F4      		brne 0b
+ 302:tmk_core/common/action_tapping.c ****             waiting_buffer_scan_tap();
+ 1012               		.loc 1 302 13 is_stmt 1 view .LVU267
+ 1013 031e 80E0      		ldi r24,lo8(tapping_key)
+ 1014 0320 90E0      		ldi r25,hi8(tapping_key)
+ 1015 0322 0E94 0000 		call process_record_tap_hint
+ 1016               	.LVL70:
+ 303:tmk_core/common/action_tapping.c ****             debug_tapping_key();
+ 1017               		.loc 1 303 13 view .LVU268
+ 1018 0326 0E94 0000 		call waiting_buffer_scan_tap
+ 1019               	.LVL71:
+ 1020 032a 00C0      		rjmp .L99
+ 1021               	.LVL72:
+ 1022               	.L30:
+ 1023               	.LBB39:
+ 1024               	.LBB31:
+ 1025               		.loc 2 50 79 is_stmt 0 view .LVU269
+ 1026 032c 81E0      		ldi r24,lo8(1)
+ 1027 032e 8E25      		eor r24,r14
+ 1028 0330 00C0      		rjmp .L29
+ 1029               	.LBE31:
+ 1030               	.LBE39:
+ 1031               		.cfi_endproc
+ 1032               	.LFE6:
+ 1034               		.section	.text.get_tapping_term,"ax",@progbits
+ 1035               		.weak	get_tapping_term
+ 1037               	get_tapping_term:
+ 1038               	.LVL73:
+ 1039               	.LFB4:
+  22:tmk_core/common/action_tapping.c **** 
+ 1040               		.loc 1 22 88 is_stmt 1 view -0
+ 1041               		.cfi_startproc
+ 1042               	/* prologue: function */
+ 1043               	/* frame size = 0 */
+ 1044               	/* stack size = 0 */
+ 1045               	.L__stack_usage = 0
+  22:tmk_core/common/action_tapping.c **** 
+ 1046               		.loc 1 22 90 view .LVU271
+  22:tmk_core/common/action_tapping.c **** 
+ 1047               		.loc 1 22 1 is_stmt 0 view .LVU272
+ 1048 0000 84E6      		ldi r24,lo8(100)
+ 1049 0002 90E0      		ldi r25,0
+ 1050               	.LVL74:
+ 1051               	/* epilogue start */
+  22:tmk_core/common/action_tapping.c **** 
+ 1052               		.loc 1 22 1 view .LVU273
+ 1053 0004 0895      		ret
+ 1054               		.cfi_endproc
+ 1055               	.LFE4:
+ 1057               		.section	.text.action_tapping_process,"ax",@progbits
+ 1058               	.global	action_tapping_process
+ 1060               	action_tapping_process:
+ 1061               	.LFB5:
+  56:tmk_core/common/action_tapping.c ****     if (process_tapping(&record)) {
+ 1062               		.loc 1 56 49 is_stmt 1 view -0
+ 1063               		.cfi_startproc
+ 1064 0000 1F93      		push r17
+ 1065               	.LCFI18:
+ 1066               		.cfi_def_cfa_offset 3
+ 1067               		.cfi_offset 17, -2
+ 1068 0002 CF93      		push r28
+ 1069               	.LCFI19:
+ 1070               		.cfi_def_cfa_offset 4
+ 1071               		.cfi_offset 28, -3
+ 1072 0004 DF93      		push r29
+ 1073               	.LCFI20:
+ 1074               		.cfi_def_cfa_offset 5
+ 1075               		.cfi_offset 29, -4
+ 1076 0006 CDB7      		in r28,__SP_L__
+ 1077 0008 DEB7      		in r29,__SP_H__
+ 1078               	.LCFI21:
+ 1079               		.cfi_def_cfa_register 28
+ 1080 000a 2C97      		sbiw r28,12
+ 1081               	.LCFI22:
+ 1082               		.cfi_def_cfa_offset 17
+ 1083 000c 0FB6      		in __tmp_reg__,__SREG__
+ 1084 000e F894      		cli
+ 1085 0010 DEBF      		out __SP_H__,r29
+ 1086 0012 0FBE      		out __SREG__,__tmp_reg__
+ 1087 0014 CDBF      		out __SP_L__,r28
+ 1088               	/* prologue: function */
+ 1089               	/* frame size = 12 */
+ 1090               	/* stack size = 15 */
+ 1091               	.L__stack_usage = 15
+ 1092 0016 4F83      		std Y+7,r20
+ 1093 0018 5887      		std Y+8,r21
+ 1094 001a 6987      		std Y+9,r22
+ 1095 001c 7A87      		std Y+10,r23
+ 1096 001e 8B87      		std Y+11,r24
+ 1097 0020 9C87      		std Y+12,r25
+  57:tmk_core/common/action_tapping.c ****         if (!IS_NOEVENT(record.event)) {
+ 1098               		.loc 1 57 5 view .LVU275
+  57:tmk_core/common/action_tapping.c ****         if (!IS_NOEVENT(record.event)) {
+ 1099               		.loc 1 57 9 is_stmt 0 view .LVU276
+ 1100 0022 CE01      		movw r24,r28
+ 1101 0024 0796      		adiw r24,7
+ 1102 0026 0E94 0000 		call process_tapping
+ 1103               	.LVL75:
+  57:tmk_core/common/action_tapping.c ****         if (!IS_NOEVENT(record.event)) {
+ 1104               		.loc 1 57 8 view .LVU277
+ 1105 002a 8823      		tst r24
+ 1106 002c 01F0      		breq .L104
+  58:tmk_core/common/action_tapping.c ****             debug("processed: ");
+ 1107               		.loc 1 58 9 is_stmt 1 view .LVU278
+ 1108               	.LBB48:
+ 1109               	.LBI48:
+  48:tmk_core/common/keyboard.h **** static inline bool IS_PRESSED(keyevent_t event) { return (!IS_NOEVENT(event) && event.pressed); }
+ 1110               		.loc 2 48 20 view .LVU279
+ 1111               	.LBB49:
+  48:tmk_core/common/keyboard.h **** static inline bool IS_PRESSED(keyevent_t event) { return (!IS_NOEVENT(event) && event.pressed); }
+ 1112               		.loc 2 48 51 view .LVU280
+  48:tmk_core/common/keyboard.h **** static inline bool IS_PRESSED(keyevent_t event) { return (!IS_NOEVENT(event) && event.pressed); }
+ 1113               		.loc 2 48 74 is_stmt 0 view .LVU281
+ 1114 002e 8A85      		ldd r24,Y+10
+ 1115 0030 9B85      		ldd r25,Y+11
+ 1116 0032 892B      		or r24,r25
+ 1117 0034 01F0      		breq .L105
+ 1118 0036 4F81      		ldd r20,Y+7
+ 1119 0038 5885      		ldd r21,Y+8
+ 1120 003a 842F      		mov r24,r20
+ 1121 003c 8523      		and r24,r21
+ 1122 003e 8F3F      		cpi r24,lo8(-1)
+ 1123 0040 01F0      		breq .+2
+ 1124 0042 00C0      		rjmp .L127
+ 1125               	.L105:
+ 1126               	.LBE49:
+ 1127               	.LBE48:
+  78:tmk_core/common/action_tapping.c ****             debug("processed: waiting_buffer[");
+ 1128               		.loc 1 78 13 discriminator 1 view .LVU282
+ 1129 0044 16E0      		ldi r17,lo8(6)
+ 1130 0046 00C0      		rjmp .L112
+ 1131               	.L104:
+  64:tmk_core/common/action_tapping.c ****             // clear all in case of overflow.
+ 1132               		.loc 1 64 9 is_stmt 1 view .LVU283
+ 1133 0048 86E0      		ldi r24,lo8(6)
+ 1134 004a FE01      		movw r30,r28
+ 1135 004c 3796      		adiw r30,7
+ 1136 004e DE01      		movw r26,r28
+ 1137 0050 1196      		adiw r26,1
+ 1138               		0:
+ 1139 0052 0190      		ld r0,Z+
+ 1140 0054 0D92      		st X+,r0
+ 1141 0056 8A95      		dec r24
+ 1142 0058 01F4      		brne 0b
+ 1143               	.LVL76:
+ 1144               	.LBB50:
+ 1145               	.LBI50:
+ 317:tmk_core/common/action_tapping.c ****     if (IS_NOEVENT(record.event)) {
+ 1146               		.loc 1 317 6 view .LVU284
+ 1147               	.LBB51:
+ 318:tmk_core/common/action_tapping.c ****         return true;
+ 1148               		.loc 1 318 5 view .LVU285
+ 1149               	.LBB52:
+ 1150               	.LBI52:
+  48:tmk_core/common/keyboard.h **** static inline bool IS_PRESSED(keyevent_t event) { return (!IS_NOEVENT(event) && event.pressed); }
+ 1151               		.loc 2 48 20 view .LVU286
+ 1152               	.LBB53:
+  48:tmk_core/common/keyboard.h **** static inline bool IS_PRESSED(keyevent_t event) { return (!IS_NOEVENT(event) && event.pressed); }
+ 1153               		.loc 2 48 51 view .LVU287
+  48:tmk_core/common/keyboard.h **** static inline bool IS_PRESSED(keyevent_t event) { return (!IS_NOEVENT(event) && event.pressed); }
+ 1154               		.loc 2 48 74 is_stmt 0 view .LVU288
+ 1155 005a 8A85      		ldd r24,Y+10
+ 1156 005c 9B85      		ldd r25,Y+11
+ 1157 005e 892B      		or r24,r25
+ 1158 0060 01F0      		breq .L105
+ 1159 0062 8F81      		ldd r24,Y+7
+ 1160 0064 9885      		ldd r25,Y+8
+ 1161 0066 8923      		and r24,r25
+ 1162 0068 8F3F      		cpi r24,lo8(-1)
+ 1163 006a 01F0      		breq .L105
+ 1164               	.LBE53:
+ 1165               	.LBE52:
+ 322:tmk_core/common/action_tapping.c ****         debug("waiting_buffer_enq: Over flow.\n");
+ 1166               		.loc 1 322 5 is_stmt 1 view .LVU289
+ 322:tmk_core/common/action_tapping.c ****         debug("waiting_buffer_enq: Over flow.\n");
+ 1167               		.loc 1 322 30 is_stmt 0 view .LVU290
+ 1168 006c 2091 0000 		lds r18,waiting_buffer_head
+ 1169 0070 30E0      		ldi r19,0
+ 1170 0072 C901      		movw r24,r18
+ 1171 0074 0196      		adiw r24,1
+ 322:tmk_core/common/action_tapping.c ****         debug("waiting_buffer_enq: Over flow.\n");
+ 1172               		.loc 1 322 35 view .LVU291
+ 1173 0076 8770      		andi r24,7
+ 1174 0078 9927      		clr r25
+ 322:tmk_core/common/action_tapping.c ****         debug("waiting_buffer_enq: Over flow.\n");
+ 1175               		.loc 1 322 57 view .LVU292
+ 1176 007a 4091 0000 		lds r20,waiting_buffer_tail
+ 322:tmk_core/common/action_tapping.c ****         debug("waiting_buffer_enq: Over flow.\n");
+ 1177               		.loc 1 322 8 view .LVU293
+ 1178 007e 4817      		cp r20,r24
+ 1179 0080 1906      		cpc __zero_reg__,r25
+ 1180 0082 01F4      		brne .L129
+ 1181               	.LVL77:
+ 322:tmk_core/common/action_tapping.c ****         debug("waiting_buffer_enq: Over flow.\n");
+ 1182               		.loc 1 322 8 view .LVU294
+ 1183               	.LBE51:
+ 1184               	.LBE50:
+  66:tmk_core/common/action_tapping.c ****             clear_keyboard();
+ 1185               		.loc 1 66 50 is_stmt 1 view .LVU295
+  67:tmk_core/common/action_tapping.c ****             waiting_buffer_clear();
+ 1186               		.loc 1 67 13 view .LVU296
+ 1187 0084 0E94 0000 		call clear_keyboard
+ 1188               	.LVL78:
+  68:tmk_core/common/action_tapping.c ****             tapping_key = (keyrecord_t){};
+ 1189               		.loc 1 68 13 view .LVU297
+ 1190               	.LBB55:
+ 1191               	.LBI55:
+ 339:tmk_core/common/action_tapping.c ****     waiting_buffer_head = 0;
+ 1192               		.loc 1 339 6 view .LVU298
+ 1193               	.LBB56:
+ 340:tmk_core/common/action_tapping.c ****     waiting_buffer_tail = 0;
+ 1194               		.loc 1 340 5 view .LVU299
+ 340:tmk_core/common/action_tapping.c ****     waiting_buffer_tail = 0;
+ 1195               		.loc 1 340 25 is_stmt 0 view .LVU300
+ 1196 0088 1092 0000 		sts waiting_buffer_head,__zero_reg__
+ 341:tmk_core/common/action_tapping.c **** }
+ 1197               		.loc 1 341 5 is_stmt 1 view .LVU301
+ 341:tmk_core/common/action_tapping.c **** }
+ 1198               		.loc 1 341 25 is_stmt 0 view .LVU302
+ 1199 008c 1092 0000 		sts waiting_buffer_tail,__zero_reg__
+ 1200               	.LBE56:
+ 1201               	.LBE55:
+  69:tmk_core/common/action_tapping.c ****         }
+ 1202               		.loc 1 69 13 is_stmt 1 view .LVU303
+  69:tmk_core/common/action_tapping.c ****         }
+ 1203               		.loc 1 69 25 is_stmt 0 view .LVU304
+ 1204 0090 86E0      		ldi r24,lo8(6)
+ 1205 0092 E0E0      		ldi r30,lo8(tapping_key)
+ 1206 0094 F0E0      		ldi r31,hi8(tapping_key)
+ 1207 0096 DF01      		movw r26,r30
+ 1208               		0:
+ 1209 0098 1D92      		st X+,__zero_reg__
+ 1210 009a 8A95      		dec r24
+ 1211 009c 01F4      		brne 0b
+ 1212 009e 00C0      		rjmp .L105
+ 1213               	.LVL79:
+ 1214               	.L129:
+ 1215               	.LBB57:
+ 1216               	.LBB54:
+ 327:tmk_core/common/action_tapping.c ****     waiting_buffer_head                 = (waiting_buffer_head + 1) % WAITING_BUFFER_SIZE;
+ 1217               		.loc 1 327 5 is_stmt 1 view .LVU305
+ 327:tmk_core/common/action_tapping.c ****     waiting_buffer_head                 = (waiting_buffer_head + 1) % WAITING_BUFFER_SIZE;
+ 1218               		.loc 1 327 41 is_stmt 0 view .LVU306
+ 1219 00a0 96E0      		ldi r25,lo8(6)
+ 1220               	.LVL80:
+ 327:tmk_core/common/action_tapping.c ****     waiting_buffer_head                 = (waiting_buffer_head + 1) % WAITING_BUFFER_SIZE;
+ 1221               		.loc 1 327 41 view .LVU307
+ 1222 00a2 929F      		mul r25,r18
+ 1223 00a4 D001      		movw r26,r0
+ 1224 00a6 939F      		mul r25,r19
+ 1225 00a8 B00D      		add r27,r0
+ 1226 00aa 1124      		clr __zero_reg__
+ 1227 00ac A050      		subi r26,lo8(-(waiting_buffer))
+ 1228 00ae B040      		sbci r27,hi8(-(waiting_buffer))
+ 1229 00b0 FE01      		movw r30,r28
+ 1230 00b2 3196      		adiw r30,1
+ 1231               		0:
+ 1232 00b4 0190      		ld r0,Z+
+ 1233 00b6 0D92      		st X+,r0
+ 1234 00b8 9A95      		dec r25
+ 1235 00ba 01F4      		brne 0b
+ 328:tmk_core/common/action_tapping.c **** 
+ 1236               		.loc 1 328 5 is_stmt 1 view .LVU308
+ 328:tmk_core/common/action_tapping.c **** 
+ 1237               		.loc 1 328 41 is_stmt 0 view .LVU309
+ 1238 00bc 8093 0000 		sts waiting_buffer_head,r24
+ 330:tmk_core/common/action_tapping.c ****     debug_waiting_buffer();
+ 1239               		.loc 1 330 34 is_stmt 1 view .LVU310
+ 331:tmk_core/common/action_tapping.c ****     return true;
+ 1240               		.loc 1 331 5 view .LVU311
+ 1241 00c0 0E94 0000 		call debug_waiting_buffer
+ 1242               	.LVL81:
+ 332:tmk_core/common/action_tapping.c **** }
+ 1243               		.loc 1 332 5 view .LVU312
+ 332:tmk_core/common/action_tapping.c **** }
+ 1244               		.loc 1 332 5 is_stmt 0 view .LVU313
+ 1245 00c4 00C0      		rjmp .L105
+ 1246               	.L110:
+ 332:tmk_core/common/action_tapping.c **** }
+ 1247               		.loc 1 332 5 view .LVU314
+ 1248               	.LBE54:
+ 1249               	.LBE57:
+  78:tmk_core/common/action_tapping.c ****             debug("processed: waiting_buffer[");
+ 1250               		.loc 1 78 9 is_stmt 1 view .LVU315
+  78:tmk_core/common/action_tapping.c ****             debug("processed: waiting_buffer[");
+ 1251               		.loc 1 78 13 is_stmt 0 view .LVU316
+ 1252 00c6 819F      		mul r24,r17
+ 1253 00c8 C001      		movw r24,r0
+ 1254 00ca 1124      		clr __zero_reg__
+ 1255 00cc 8050      		subi r24,lo8(-(waiting_buffer))
+ 1256 00ce 9040      		sbci r25,hi8(-(waiting_buffer))
+ 1257 00d0 0E94 0000 		call process_tapping
+ 1258               	.LVL82:
+  78:tmk_core/common/action_tapping.c ****             debug("processed: waiting_buffer[");
+ 1259               		.loc 1 78 12 view .LVU317
+ 1260 00d4 8823      		tst r24
+ 1261 00d6 01F0      		breq .L103
+  79:tmk_core/common/action_tapping.c ****             debug_dec(waiting_buffer_tail);
+ 1262               		.loc 1 79 48 is_stmt 1 view .LVU318
+  80:tmk_core/common/action_tapping.c ****             debug("] = ");
+ 1263               		.loc 1 80 43 view .LVU319
+  81:tmk_core/common/action_tapping.c ****             debug_record(waiting_buffer[waiting_buffer_tail]);
+ 1264               		.loc 1 81 26 view .LVU320
+  82:tmk_core/common/action_tapping.c ****             debug("\n\n");
+ 1265               		.loc 1 82 13 view .LVU321
+ 1266 00d8 E091 0000 		lds r30,waiting_buffer_tail
+ 1267 00dc 1E9F      		mul r17,r30
+ 1268 00de F001      		movw r30,r0
+ 1269 00e0 1124      		clr __zero_reg__
+ 1270 00e2 E050      		subi r30,lo8(-(waiting_buffer))
+ 1271 00e4 F040      		sbci r31,hi8(-(waiting_buffer))
+ 1272 00e6 4081      		ld r20,Z
+ 1273 00e8 5181      		ldd r21,Z+1
+ 1274 00ea 6281      		ldd r22,Z+2
+ 1275 00ec 7381      		ldd r23,Z+3
+ 1276 00ee 8481      		ldd r24,Z+4
+ 1277 00f0 9581      		ldd r25,Z+5
+ 1278 00f2 0E94 0000 		call debug_record
+ 1279               	.LVL83:
+  83:tmk_core/common/action_tapping.c ****         } else {
+ 1280               		.loc 1 83 26 view .LVU322
+  77:tmk_core/common/action_tapping.c ****         if (process_tapping(&waiting_buffer[waiting_buffer_tail])) {
+ 1281               		.loc 1 77 56 view .LVU323
+  77:tmk_core/common/action_tapping.c ****         if (process_tapping(&waiting_buffer[waiting_buffer_tail])) {
+ 1282               		.loc 1 77 99 is_stmt 0 view .LVU324
+ 1283 00f6 8091 0000 		lds r24,waiting_buffer_tail
+ 1284 00fa 90E0      		ldi r25,0
+ 1285 00fc 0196      		adiw r24,1
+  77:tmk_core/common/action_tapping.c ****         if (process_tapping(&waiting_buffer[waiting_buffer_tail])) {
+ 1286               		.loc 1 77 104 view .LVU325
+ 1287 00fe 8770      		andi r24,7
+ 1288 0100 9927      		clr r25
+  77:tmk_core/common/action_tapping.c ****         if (process_tapping(&waiting_buffer[waiting_buffer_tail])) {
+ 1289               		.loc 1 77 76 view .LVU326
+ 1290 0102 8093 0000 		sts waiting_buffer_tail,r24
+ 1291               	.L112:
+  77:tmk_core/common/action_tapping.c ****         if (process_tapping(&waiting_buffer[waiting_buffer_tail])) {
+ 1292               		.loc 1 77 12 is_stmt 1 discriminator 1 view .LVU327
+  77:tmk_core/common/action_tapping.c ****         if (process_tapping(&waiting_buffer[waiting_buffer_tail])) {
+ 1293               		.loc 1 77 32 is_stmt 0 discriminator 1 view .LVU328
+ 1294 0106 8091 0000 		lds r24,waiting_buffer_tail
+  77:tmk_core/common/action_tapping.c ****         if (process_tapping(&waiting_buffer[waiting_buffer_tail])) {
+ 1295               		.loc 1 77 5 discriminator 1 view .LVU329
+ 1296 010a 9091 0000 		lds r25,waiting_buffer_head
+ 1297 010e 8913      		cpse r24,r25
+ 1298 0110 00C0      		rjmp .L110
+ 1299               	.L103:
+ 1300               	/* epilogue start */
+  91:tmk_core/common/action_tapping.c **** 
+ 1301               		.loc 1 91 1 view .LVU330
+ 1302 0112 2C96      		adiw r28,12
+ 1303 0114 0FB6      		in __tmp_reg__,__SREG__
+ 1304 0116 F894      		cli
+ 1305 0118 DEBF      		out __SP_H__,r29
+ 1306 011a 0FBE      		out __SREG__,__tmp_reg__
+ 1307 011c CDBF      		out __SP_L__,r28
+ 1308 011e DF91      		pop r29
+ 1309 0120 CF91      		pop r28
+ 1310 0122 1F91      		pop r17
+ 1311 0124 0895      		ret
+ 1312               	.L127:
+  59:tmk_core/common/action_tapping.c ****             debug_record(record);
+ 1313               		.loc 1 59 33 is_stmt 1 view .LVU331
+  60:tmk_core/common/action_tapping.c ****             debug("\n");
+ 1314               		.loc 1 60 13 view .LVU332
+ 1315 0126 6985      		ldd r22,Y+9
+ 1316 0128 7A85      		ldd r23,Y+10
+ 1317 012a 8B85      		ldd r24,Y+11
+ 1318 012c 9C85      		ldd r25,Y+12
+ 1319 012e 0E94 0000 		call debug_record
+ 1320               	.LVL84:
+ 1321 0132 00C0      		rjmp .L105
+ 1322               		.cfi_endproc
+ 1323               	.LFE5:
+ 1325               		.section	.bss.waiting_buffer_tail,"aw",@nobits
+ 1328               	waiting_buffer_tail:
+ 1329 0000 00        		.zero	1
+ 1330               		.section	.bss.waiting_buffer_head,"aw",@nobits
+ 1333               	waiting_buffer_head:
+ 1334 0000 00        		.zero	1
+ 1335               		.section	.bss.waiting_buffer,"aw",@nobits
+ 1338               	waiting_buffer:
+ 1339 0000 0000 0000 		.zero	48
+ 1339      0000 0000 
+ 1339      0000 0000 
+ 1339      0000 0000 
+ 1339      0000 0000 
+ 1340               		.section	.bss.tapping_key,"aw",@nobits
+ 1343               	tapping_key:
+ 1344 0000 0000 0000 		.zero	6
+ 1344      0000 
+ 1345               		.text
+ 1346               	.Letext0:
+ 1347               		.file 3 "/usr/local/Cellar/avr-gcc@8/8.4.0_2/avr/include/stdint.h"
+ 1348               		.file 4 "tmk_core/common/keycode.h"
+ 1349               		.file 5 "tmk_core/common/action_code.h"
+ 1350               		.file 6 "tmk_core/common/action.h"
+ 1351               		.file 7 "tmk_core/common/action_layer.h"
+ 1352               		.file 8 "tmk_core/common/timer.h"
+ 1353               		.file 9 "tmk_core/common/debug.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 action_tapping.c
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:12     .text.debug_waiting_buffer:0000000000000000 debug_waiting_buffer
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:15     .text.debug_waiting_buffer:0000000000000000 .Loc.0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:16     .text.debug_waiting_buffer:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:33     .text.debug_waiting_buffer:0000000000000006 .Loc.1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:34     .text.debug_waiting_buffer:0000000000000006 .Loc.2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:36     .text.debug_waiting_buffer:0000000000000006 .Loc.3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:37     .text.debug_waiting_buffer:0000000000000006 .Loc.4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1328   .bss.waiting_buffer_tail:0000000000000000 waiting_buffer_tail
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:40     .text.debug_waiting_buffer:000000000000000a .Loc.5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:44     .text.debug_waiting_buffer:000000000000000c .Loc.6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:45     .text.debug_waiting_buffer:000000000000000c .Loc.7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1333   .bss.waiting_buffer_head:0000000000000000 waiting_buffer_head
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:51     .text.debug_waiting_buffer:0000000000000014 .Loc.8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:55     .text.debug_waiting_buffer:0000000000000018 .Loc.9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:61     .text.debug_waiting_buffer:000000000000001c .Loc.10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:62     .text.debug_waiting_buffer:000000000000001c .Loc.11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:63     .text.debug_waiting_buffer:000000000000001c .Loc.12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:64     .text.debug_waiting_buffer:000000000000001c .Loc.13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1338   .bss.waiting_buffer:0000000000000000 waiting_buffer
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:81     .text.debug_waiting_buffer:000000000000003c .Loc.14
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:82     .text.debug_waiting_buffer:000000000000003c .Loc.15
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:83     .text.debug_waiting_buffer:000000000000003c .Loc.16
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:86     .text.debug_waiting_buffer:000000000000003e .Loc.17
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:88     .text.debug_waiting_buffer:0000000000000040 .Loc.18
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:91     .text.debug_waiting_buffer:0000000000000042 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:96     .text.debug_tapping_key:0000000000000000 debug_tapping_key
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:98     .text.debug_tapping_key:0000000000000000 .Loc.19
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:99     .text.debug_tapping_key:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:104    .text.debug_tapping_key:0000000000000000 .Loc.20
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:105    .text.debug_tapping_key:0000000000000000 .Loc.21
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1343   .bss.tapping_key:0000000000000000 tapping_key
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:114    .text.debug_tapping_key:000000000000001c L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:119    .text.waiting_buffer_scan_tap:0000000000000000 waiting_buffer_scan_tap
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:121    .text.waiting_buffer_scan_tap:0000000000000000 .Loc.22
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:122    .text.waiting_buffer_scan_tap:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:139    .text.waiting_buffer_scan_tap:0000000000000006 .Loc.23
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:140    .text.waiting_buffer_scan_tap:0000000000000006 .Loc.24
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:143    .text.waiting_buffer_scan_tap:000000000000000c .Loc.25
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:145    .text.waiting_buffer_scan_tap:000000000000000e .Loc.26
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:146    .text.waiting_buffer_scan_tap:000000000000000e .Loc.27
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:150    .text.waiting_buffer_scan_tap:0000000000000016 .Loc.28
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:152    .text.waiting_buffer_scan_tap:0000000000000016 .Loc.29
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:153    .text.waiting_buffer_scan_tap:0000000000000016 .Loc.30
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:156    .text.waiting_buffer_scan_tap:000000000000001a .Loc.31
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:158    .text.waiting_buffer_scan_tap:000000000000001e .Loc.32
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:168    .text.waiting_buffer_scan_tap:0000000000000034 .Loc.33
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:169    .text.waiting_buffer_scan_tap:0000000000000034 .Loc.34
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:175    .text.waiting_buffer_scan_tap:0000000000000038 .Loc.35
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:177    .text.waiting_buffer_scan_tap:0000000000000038 .Loc.36
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:185    .text.waiting_buffer_scan_tap:0000000000000040 .Loc.37
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:189    .text.waiting_buffer_scan_tap:0000000000000040 .Loc.38
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:191    .text.waiting_buffer_scan_tap:0000000000000040 .Loc.39
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:193    .text.waiting_buffer_scan_tap:0000000000000042 .Loc.40
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:201    .text.waiting_buffer_scan_tap:000000000000004a .Loc.41
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:202    .text.waiting_buffer_scan_tap:000000000000004a .Loc.42
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:205    .text.waiting_buffer_scan_tap:000000000000004c .Loc.43
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:207    .text.waiting_buffer_scan_tap:000000000000004e .Loc.44
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:211    .text.waiting_buffer_scan_tap:0000000000000050 .Loc.45
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:223    .text.waiting_buffer_scan_tap:0000000000000066 .Loc.46
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:227    .text.waiting_buffer_scan_tap:000000000000006c .Loc.47
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:231    .text.waiting_buffer_scan_tap:0000000000000072 .Loc.48
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:236    .text.waiting_buffer_scan_tap:000000000000007a .Loc.49
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:240    .text.waiting_buffer_scan_tap:0000000000000080 .Loc.50
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:241    .text.waiting_buffer_scan_tap:0000000000000080 .Loc.51
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:244    .text.waiting_buffer_scan_tap:0000000000000084 .Loc.52
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:248    .text.waiting_buffer_scan_tap:000000000000008c .Loc.53
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:249    .text.waiting_buffer_scan_tap:000000000000008c .Loc.54
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:257    .text.waiting_buffer_scan_tap:000000000000009a .Loc.55
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:262    .text.waiting_buffer_scan_tap:00000000000000a2 .Loc.56
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:263    .text.waiting_buffer_scan_tap:00000000000000a2 .Loc.57
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:264    .text.waiting_buffer_scan_tap:00000000000000a2 .Loc.58
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:265    .text.waiting_buffer_scan_tap:00000000000000a2 .Loc.59
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:268    .text.waiting_buffer_scan_tap:00000000000000a2 .Loc.60
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:273    .text.waiting_buffer_scan_tap:00000000000000a8 .Loc.61
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:277    .text.waiting_buffer_scan_tap:00000000000000ac L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:282    .text.process_tapping:0000000000000000 process_tapping
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:285    .text.process_tapping:0000000000000000 .Loc.62
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:286    .text.process_tapping:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:287    .text.process_tapping:0000000000000000 .Loc.63
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:345    .text.process_tapping:0000000000000026 .Loc.64
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:346    .text.process_tapping:0000000000000026 .Loc.65
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:349    .text.process_tapping:0000000000000028 .Loc.66
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:361    .text.process_tapping:000000000000003a .Loc.67
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:364    .text.process_tapping:000000000000003c .Loc.68
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:367    .text.process_tapping:000000000000003e .Loc.69
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:368    .text.process_tapping:000000000000003e .Loc.70
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:377    .text.process_tapping:000000000000004e .Loc.71
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:379    .text.process_tapping:000000000000004e .Loc.72
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:380    .text.process_tapping:000000000000004e .Loc.73
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:383    .text.process_tapping:0000000000000054 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:387    .text.process_tapping:0000000000000056 .Loc.74
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:392    .text.process_tapping:000000000000005e .Loc.75
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:396    .text.process_tapping:0000000000000066 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:400    .text.process_tapping:0000000000000068 .Loc.76
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:403    .text.process_tapping:000000000000006c .Loc.77
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:409    .text.process_tapping:000000000000007a L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:411    .text.process_tapping:000000000000007c .Loc.78
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:415    .text.process_tapping:0000000000000084 .Loc.79
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:418    .text.process_tapping:000000000000008a L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:420    .text.process_tapping:000000000000008c .Loc.80
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:421    .text.process_tapping:000000000000008c .Loc.81
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:424    .text.process_tapping:0000000000000090 .Loc.82
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:426    .text.process_tapping:0000000000000092 .Loc.83
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:429    .text.process_tapping:0000000000000096 .Loc.84
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:432    .text.process_tapping:000000000000009a .Loc.85
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:435    .text.process_tapping:000000000000009e .Loc.86
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:436    .text.process_tapping:000000000000009e .Loc.87
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:437    .text.process_tapping:000000000000009e .Loc.88
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:442    .text.process_tapping:00000000000000a6 .Loc.89
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:445    .text.process_tapping:00000000000000aa .Loc.90
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:449    .text.process_tapping:00000000000000b0 .Loc.91
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:450    .text.process_tapping:00000000000000b0 .Loc.92
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:454    .text.process_tapping:00000000000000b8 .Loc.93
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:457    .text.process_tapping:00000000000000b8 .Loc.94
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:460    .text.process_tapping:00000000000000ba .Loc.95
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:472    .text.process_tapping:00000000000000ce .Loc.96
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:476    .text.process_tapping:00000000000000d2 .Loc.97
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:484    .text.process_tapping:00000000000000dc .Loc.98
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:487    .text.process_tapping:00000000000000dc .Loc.99
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:489    .text.process_tapping:00000000000000dc .Loc.100
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:492    .text.process_tapping:00000000000000dc .Loc.101
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:494    .text.process_tapping:00000000000000dc .Loc.102
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:495    .text.process_tapping:00000000000000dc .Loc.103
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:501    .text.process_tapping:00000000000000e8 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:504    .text.process_tapping:00000000000000ea .Loc.104
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:507    .text.process_tapping:00000000000000ea .Loc.105
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:511    .text.process_tapping:00000000000000ec .Loc.106
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:514    .text.process_tapping:00000000000000ec .Loc.107
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:522    .text.process_tapping:00000000000000f6 .Loc.108
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:524    .text.process_tapping:00000000000000f6 .Loc.109
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:527    .text.process_tapping:00000000000000f6 .Loc.110
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:528    .text.process_tapping:00000000000000f6 .Loc.111
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:531    .text.process_tapping:00000000000000fa .Loc.112
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:533    .text.process_tapping:00000000000000fe .Loc.113
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:537    .text.process_tapping:0000000000000100 .Loc.114
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:538    .text.process_tapping:0000000000000100 .Loc.115
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:542    .text.process_tapping:0000000000000104 .Loc.116
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:546    .text.process_tapping:0000000000000104 .Loc.117
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:547    .text.process_tapping:0000000000000104 .Loc.118
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:554    .text.process_tapping:0000000000000110 .Loc.119
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:555    .text.process_tapping:0000000000000110 .Loc.120
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:559    .text.process_tapping:0000000000000116 .Loc.121
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:562    .text.process_tapping:000000000000011a .Loc.122
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:565    .text.process_tapping:000000000000011e .Loc.123
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:566    .text.process_tapping:000000000000011e .Loc.124
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:569    .text.process_tapping:0000000000000120 .Loc.125
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:571    .text.process_tapping:0000000000000122 .Loc.126
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:575    .text.process_tapping:0000000000000128 .Loc.127
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:579    .text.process_tapping:000000000000012a .Loc.128
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:584    .text.process_tapping:000000000000012e .Loc.129
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:588    .text.process_tapping:000000000000012e .Loc.130
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:589    .text.process_tapping:000000000000012e .Loc.131
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:598    .text.process_tapping:000000000000013e .Loc.132
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:602    .text.process_tapping:0000000000000144 .Loc.133
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:606    .text.process_tapping:000000000000014a .Loc.134
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:611    .text.process_tapping:0000000000000150 .Loc.135
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:612    .text.process_tapping:0000000000000150 .Loc.136
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:615    .text.process_tapping:0000000000000152 .Loc.137
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:617    .text.process_tapping:0000000000000154 .Loc.138
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:621    .text.process_tapping:0000000000000156 .Loc.139
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:625    .text.process_tapping:0000000000000156 .Loc.140
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:626    .text.process_tapping:0000000000000156 .Loc.141
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:629    .text.process_tapping:0000000000000158 .Loc.142
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:631    .text.process_tapping:000000000000015a .Loc.143
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:635    .text.process_tapping:000000000000015e .Loc.144
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:636    .text.process_tapping:000000000000015e .Loc.145
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:639    .text.process_tapping:0000000000000160 .Loc.146
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:644    .text.process_tapping:0000000000000164 .Loc.147
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:645    .text.process_tapping:0000000000000164 .Loc.148
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:648    .text.process_tapping:0000000000000166 .Loc.149
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:651    .text.process_tapping:000000000000016a .Loc.150
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:653    .text.process_tapping:000000000000016a .Loc.151
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:658    .text.process_tapping:000000000000016e .Loc.152
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:660    .text.process_tapping:000000000000016e .Loc.153
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:661    .text.process_tapping:000000000000016e .Loc.154
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:663    .text.process_tapping:0000000000000172 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:665    .text.process_tapping:0000000000000174 .Loc.155
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:666    .text.process_tapping:0000000000000174 .Loc.156
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:672    .text.process_tapping:000000000000017e .Loc.157
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:673    .text.process_tapping:000000000000017e .Loc.158
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:678    .text.process_tapping:0000000000000182 .Loc.159
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:679    .text.process_tapping:0000000000000182 .Loc.160
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:682    .text.process_tapping:0000000000000186 .Loc.161
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:685    .text.process_tapping:000000000000018a .Loc.162
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:688    .text.process_tapping:000000000000018e .Loc.163
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:689    .text.process_tapping:000000000000018e .Loc.164
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:690    .text.process_tapping:000000000000018e .Loc.165
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:691    .text.process_tapping:000000000000018e .Loc.166
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:692    .text.process_tapping:000000000000018e .Loc.167
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:695    .text.process_tapping:0000000000000192 .Loc.168
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:699    .text.process_tapping:0000000000000198 .Loc.169
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:700    .text.process_tapping:0000000000000198 .Loc.170
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:710    .text.process_tapping:00000000000001a8 .Loc.171
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:713    .text.process_tapping:00000000000001a8 .Loc.172
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:716    .text.process_tapping:00000000000001ac .Loc.173
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:717    .text.process_tapping:00000000000001ac .Loc.174
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:721    .text.process_tapping:00000000000001ae .Loc.175
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:722    .text.process_tapping:00000000000001ae .Loc.176
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:729    .text.process_tapping:00000000000001ba .Loc.177
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:732    .text.process_tapping:00000000000001be .Loc.178
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:735    .text.process_tapping:00000000000001c2 .Loc.179
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:736    .text.process_tapping:00000000000001c2 .Loc.180
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:738    .text.process_tapping:00000000000001c6 .Loc.181
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:741    .text.process_tapping:00000000000001ca .Loc.182
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:742    .text.process_tapping:00000000000001ca .Loc.183
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:743    .text.process_tapping:00000000000001ca .Loc.184
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:752    .text.process_tapping:00000000000001de .Loc.185
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:756    .text.process_tapping:00000000000001e2 .Loc.186
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:760    .text.process_tapping:00000000000001e6 .Loc.187
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:761    .text.process_tapping:00000000000001e6 .Loc.188
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:762    .text.process_tapping:00000000000001e6 .Loc.189
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:772    .text.process_tapping:00000000000001f6 .Loc.190
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:775    .text.process_tapping:00000000000001fa .Loc.191
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:778    .text.process_tapping:00000000000001fe .Loc.192
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:780    .text.process_tapping:00000000000001fe .Loc.193
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:781    .text.process_tapping:00000000000001fe .Loc.194
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:786    .text.process_tapping:0000000000000204 .Loc.195
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:787    .text.process_tapping:0000000000000204 .Loc.196
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:788    .text.process_tapping:0000000000000204 .Loc.197
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:795    .text.process_tapping:000000000000020c .Loc.198
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:796    .text.process_tapping:000000000000020c .Loc.199
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:799    .text.process_tapping:0000000000000210 .Loc.200
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:800    .text.process_tapping:0000000000000210 .Loc.201
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:801    .text.process_tapping:0000000000000210 .Loc.202
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:809    .text.process_tapping:000000000000021e .Loc.203
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:810    .text.process_tapping:000000000000021e .Loc.204
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:815    .text.process_tapping:0000000000000226 .Loc.205
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:816    .text.process_tapping:0000000000000226 .Loc.206
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:823    .text.process_tapping:0000000000000230 .Loc.207
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:829    .text.process_tapping:0000000000000236 .Loc.208
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:830    .text.process_tapping:0000000000000236 .Loc.209
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:833    .text.process_tapping:000000000000023a .Loc.210
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:836    .text.process_tapping:000000000000023e .Loc.211
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:839    .text.process_tapping:0000000000000242 .Loc.212
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:840    .text.process_tapping:0000000000000242 .Loc.213
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:841    .text.process_tapping:0000000000000242 .Loc.214
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:844    .text.process_tapping:0000000000000246 .Loc.215
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:848    .text.process_tapping:000000000000024c .Loc.216
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:849    .text.process_tapping:000000000000024c .Loc.217
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:856    .text.process_tapping:0000000000000256 .Loc.218
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:857    .text.process_tapping:0000000000000256 .Loc.219
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:861    .text.process_tapping:0000000000000258 .Loc.220
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:862    .text.process_tapping:0000000000000258 .Loc.221
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:869    .text.process_tapping:0000000000000264 .Loc.222
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:872    .text.process_tapping:0000000000000268 .Loc.223
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:875    .text.process_tapping:000000000000026c .Loc.224
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:876    .text.process_tapping:000000000000026c .Loc.225
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:878    .text.process_tapping:0000000000000270 .Loc.226
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:880    .text.process_tapping:0000000000000274 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:882    .text.process_tapping:0000000000000276 .Loc.227
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:883    .text.process_tapping:0000000000000276 .Loc.228
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:884    .text.process_tapping:0000000000000276 .Loc.229
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:893    .text.process_tapping:000000000000028a .Loc.230
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:899    .text.process_tapping:0000000000000290 .Loc.231
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:900    .text.process_tapping:0000000000000290 .Loc.232
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:901    .text.process_tapping:0000000000000290 .Loc.233
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:905    .text.process_tapping:0000000000000296 .Loc.234
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:906    .text.process_tapping:0000000000000296 .Loc.235
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:908    .text.process_tapping:0000000000000298 .Loc.236
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:910    .text.process_tapping:000000000000029c L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:912    .text.process_tapping:000000000000029e .Loc.237
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:913    .text.process_tapping:000000000000029e .Loc.238
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:916    .text.process_tapping:00000000000002a2 .Loc.239
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:919    .text.process_tapping:00000000000002a6 .Loc.240
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:920    .text.process_tapping:00000000000002a6 .Loc.241
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:930    .text.process_tapping:00000000000002b6 .Loc.242
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:931    .text.process_tapping:00000000000002b6 .Loc.243
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:934    .text.process_tapping:00000000000002b8 .Loc.244
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:935    .text.process_tapping:00000000000002b8 .Loc.245
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:942    .text.process_tapping:00000000000002c4 .Loc.246
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:945    .text.process_tapping:00000000000002c8 .Loc.247
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:946    .text.process_tapping:00000000000002c8 .Loc.248
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:950    .text.process_tapping:00000000000002d2 .Loc.249
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:954    .text.process_tapping:00000000000002d8 .Loc.250
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:955    .text.process_tapping:00000000000002d8 .Loc.251
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:959    .text.process_tapping:00000000000002da .Loc.252
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:960    .text.process_tapping:00000000000002da .Loc.253
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:961    .text.process_tapping:00000000000002da .Loc.254
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:969    .text.process_tapping:00000000000002e8 .Loc.255
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:970    .text.process_tapping:00000000000002e8 .Loc.256
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:971    .text.process_tapping:00000000000002e8 .Loc.257
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:978    .text.process_tapping:00000000000002f2 .Loc.258
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:982    .text.process_tapping:00000000000002f4 .Loc.259
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:983    .text.process_tapping:00000000000002f4 .Loc.260
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:985    .text.process_tapping:00000000000002f8 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:987    .text.process_tapping:00000000000002fa .Loc.261
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:994    .text.process_tapping:0000000000000306 .Loc.262
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:996    .text.process_tapping:0000000000000308 .Loc.263
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:998    .text.process_tapping:000000000000030c L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1000   .text.process_tapping:000000000000030e .Loc.264
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1001   .text.process_tapping:000000000000030e .Loc.265
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1002   .text.process_tapping:000000000000030e .Loc.266
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1012   .text.process_tapping:000000000000031e .Loc.267
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1017   .text.process_tapping:0000000000000326 .Loc.268
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1025   .text.process_tapping:000000000000032c .Loc.269
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1031   .text.process_tapping:0000000000000332 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1037   .text.get_tapping_term:0000000000000000 get_tapping_term
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1040   .text.get_tapping_term:0000000000000000 .Loc.270
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1041   .text.get_tapping_term:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1046   .text.get_tapping_term:0000000000000000 .Loc.271
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1047   .text.get_tapping_term:0000000000000000 .Loc.272
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1052   .text.get_tapping_term:0000000000000004 .Loc.273
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1054   .text.get_tapping_term:0000000000000006 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1060   .text.action_tapping_process:0000000000000000 action_tapping_process
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1062   .text.action_tapping_process:0000000000000000 .Loc.274
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1063   .text.action_tapping_process:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1098   .text.action_tapping_process:0000000000000022 .Loc.275
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1099   .text.action_tapping_process:0000000000000022 .Loc.276
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1104   .text.action_tapping_process:000000000000002a .Loc.277
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1107   .text.action_tapping_process:000000000000002e .Loc.278
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1110   .text.action_tapping_process:000000000000002e .Loc.279
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1112   .text.action_tapping_process:000000000000002e .Loc.280
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1113   .text.action_tapping_process:000000000000002e .Loc.281
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1123   .text.action_tapping_process:0000000000000042 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1128   .text.action_tapping_process:0000000000000044 .Loc.282
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1132   .text.action_tapping_process:0000000000000048 .Loc.283
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1146   .text.action_tapping_process:000000000000005a .Loc.284
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1148   .text.action_tapping_process:000000000000005a .Loc.285
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1151   .text.action_tapping_process:000000000000005a .Loc.286
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1153   .text.action_tapping_process:000000000000005a .Loc.287
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1154   .text.action_tapping_process:000000000000005a .Loc.288
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1166   .text.action_tapping_process:000000000000006c .Loc.289
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1167   .text.action_tapping_process:000000000000006c .Loc.290
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1172   .text.action_tapping_process:0000000000000076 .Loc.291
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1175   .text.action_tapping_process:000000000000007a .Loc.292
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1177   .text.action_tapping_process:000000000000007e .Loc.293
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1182   .text.action_tapping_process:0000000000000084 .Loc.294
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1185   .text.action_tapping_process:0000000000000084 .Loc.295
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1186   .text.action_tapping_process:0000000000000084 .Loc.296
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1189   .text.action_tapping_process:0000000000000088 .Loc.297
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1192   .text.action_tapping_process:0000000000000088 .Loc.298
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1194   .text.action_tapping_process:0000000000000088 .Loc.299
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1195   .text.action_tapping_process:0000000000000088 .Loc.300
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1197   .text.action_tapping_process:000000000000008c .Loc.301
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1198   .text.action_tapping_process:000000000000008c .Loc.302
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1202   .text.action_tapping_process:0000000000000090 .Loc.303
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1203   .text.action_tapping_process:0000000000000090 .Loc.304
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1217   .text.action_tapping_process:00000000000000a0 .Loc.305
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1218   .text.action_tapping_process:00000000000000a0 .Loc.306
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1221   .text.action_tapping_process:00000000000000a2 .Loc.307
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1236   .text.action_tapping_process:00000000000000bc .Loc.308
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1237   .text.action_tapping_process:00000000000000bc .Loc.309
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1239   .text.action_tapping_process:00000000000000c0 .Loc.310
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1240   .text.action_tapping_process:00000000000000c0 .Loc.311
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1243   .text.action_tapping_process:00000000000000c4 .Loc.312
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1244   .text.action_tapping_process:00000000000000c4 .Loc.313
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1247   .text.action_tapping_process:00000000000000c6 .Loc.314
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1250   .text.action_tapping_process:00000000000000c6 .Loc.315
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1251   .text.action_tapping_process:00000000000000c6 .Loc.316
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1259   .text.action_tapping_process:00000000000000d4 .Loc.317
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1262   .text.action_tapping_process:00000000000000d8 .Loc.318
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1263   .text.action_tapping_process:00000000000000d8 .Loc.319
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1264   .text.action_tapping_process:00000000000000d8 .Loc.320
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1265   .text.action_tapping_process:00000000000000d8 .Loc.321
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1280   .text.action_tapping_process:00000000000000f6 .Loc.322
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1281   .text.action_tapping_process:00000000000000f6 .Loc.323
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1282   .text.action_tapping_process:00000000000000f6 .Loc.324
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1286   .text.action_tapping_process:00000000000000fe .Loc.325
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1289   .text.action_tapping_process:0000000000000102 .Loc.326
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1292   .text.action_tapping_process:0000000000000106 .Loc.327
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1293   .text.action_tapping_process:0000000000000106 .Loc.328
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1295   .text.action_tapping_process:000000000000010a .Loc.329
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1301   .text.action_tapping_process:0000000000000112 .Loc.330
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1313   .text.action_tapping_process:0000000000000126 .Loc.331
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1314   .text.action_tapping_process:0000000000000126 .Loc.332
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1322   .text.action_tapping_process:0000000000000134 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:94     .text.debug_waiting_buffer:0000000000000042 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:117    .text.debug_tapping_key:000000000000001c L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:280    .text.waiting_buffer_scan_tap:00000000000000ac L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1034   .text.process_tapping:0000000000000332 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1057   .text.get_tapping_term:0000000000000006 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1325   .text.action_tapping_process:0000000000000134 L0
+                     .debug_frame:0000000000000000 L0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:59     .text.debug_waiting_buffer:000000000000001c .L3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:43     .text.debug_waiting_buffer:000000000000000c .L2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:173    .text.waiting_buffer_scan_tap:0000000000000038 .L5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:183    .text.waiting_buffer_scan_tap:0000000000000040 .L10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:198    .text.waiting_buffer_scan_tap:000000000000004a .L8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:210    .text.waiting_buffer_scan_tap:0000000000000050 .L21
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:167    .text.waiting_buffer_scan_tap:0000000000000034 .L7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:353    .text.process_tapping:000000000000002e .L1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:981    .text.process_tapping:00000000000002f4 .L23
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:898    .text.process_tapping:0000000000000290 .L24
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:794    .text.process_tapping:000000000000020c .L25
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:677    .text.process_tapping:0000000000000182 .L26
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:483    .text.process_tapping:00000000000000dc .L27
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:503    .text.process_tapping:00000000000000ea .L52
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1022   .text.process_tapping:000000000000032c .L30
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:657    .text.process_tapping:000000000000016e .L31
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:583    .text.process_tapping:000000000000012e .L34
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:620    .text.process_tapping:0000000000000156 .L50
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:643    .text.process_tapping:0000000000000164 .L38
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:634    .text.process_tapping:000000000000015e .L39
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:652    .text.process_tapping:000000000000016a .L37
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:610    .text.process_tapping:0000000000000150 .L33
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:536    .text.process_tapping:0000000000000100 .L32
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:578    .text.process_tapping:000000000000012a .L56
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:456    .text.process_tapping:00000000000000b8 .L22
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:720    .text.process_tapping:00000000000001ae .L40
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:705    .text.process_tapping:00000000000001a0 .L2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:785    .text.process_tapping:0000000000000204 .L48
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:759    .text.process_tapping:00000000000001e6 .L43
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:767    .text.process_tapping:00000000000001ee .L3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:779    .text.process_tapping:00000000000001fe .L101
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:828    .text.process_tapping:0000000000000236 .L44
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:819    .text.process_tapping:000000000000022a .L4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:671    .text.process_tapping:000000000000017e .L100
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:860    .text.process_tapping:0000000000000258 .L45
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:852    .text.process_tapping:0000000000000250 .L5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:755    .text.process_tapping:00000000000001e2 .L98
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:958    .text.process_tapping:00000000000002da .L47
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:933    .text.process_tapping:00000000000002b8 .L49
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:925    .text.process_tapping:00000000000002ae .L6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:974    .text.process_tapping:00000000000002ec .L7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:712    .text.process_tapping:00000000000001a8 .L99
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1007   .text.process_tapping:0000000000000316 .L8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:509    .text.process_tapping:00000000000000ec .L29
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1131   .text.action_tapping_process:0000000000000048 .L104
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1125   .text.action_tapping_process:0000000000000044 .L105
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1312   .text.action_tapping_process:0000000000000126 .L127
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1291   .text.action_tapping_process:0000000000000106 .L112
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1138   .text.action_tapping_process:0000000000000052 .L9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1214   .text.action_tapping_process:00000000000000a0 .L129
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1208   .text.action_tapping_process:0000000000000098 .L10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1231   .text.action_tapping_process:00000000000000b4 .L11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1299   .text.action_tapping_process:0000000000000112 .L103
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1246   .text.action_tapping_process:00000000000000c6 .L110
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:3507   .debug_abbrev:0000000000000000 .Ldebug_abbrev0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5482   .debug_ranges:0000000000000000 .Ldebug_ranges0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5544   .debug_line:0000000000000000 .Ldebug_line0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:13     .text.debug_waiting_buffer:0000000000000000 .LFB13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:92     .text.debug_waiting_buffer:0000000000000042 .LFE13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:4346   .debug_loc:0000000000000000 .LLST0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:4378   .debug_loc:0000000000000040 .LLST1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:4373   .debug_loc:000000000000003c .LVUS1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:80     .text.debug_waiting_buffer:000000000000003c .LVL4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:97     .text.debug_tapping_key:0000000000000000 .LFB12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:115    .text.debug_tapping_key:000000000000001c .LFE12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:113    .text.debug_tapping_key:000000000000001c .LVL6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:120    .text.waiting_buffer_scan_tap:0000000000000000 .LFB11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:278    .text.waiting_buffer_scan_tap:00000000000000ac .LFE11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:4389   .debug_loc:000000000000005e .LLST2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:4423   .debug_loc:00000000000000a0 .LLST3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:4416   .debug_loc:000000000000009a .LVUS3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:187    .text.waiting_buffer_scan_tap:0000000000000040 .LBI9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:186    .text.waiting_buffer_scan_tap:0000000000000040 .LBB9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:200    .text.waiting_buffer_scan_tap:000000000000004a .LBE9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:261    .text.waiting_buffer_scan_tap:00000000000000a2 .LVL14
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:275    .text.waiting_buffer_scan_tap:00000000000000ac .LVL15
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:284    .text.process_tapping:0000000000000000 .LFB6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1032   .text.process_tapping:0000000000000332 .LFE6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:4438   .debug_loc:00000000000000c9 .LLST4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:4526   .debug_loc:0000000000000180 .LLST5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:4517   .debug_loc:0000000000000178 .LVUS5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:4626   .debug_loc:0000000000000204 .LLST6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:4563   .debug_loc:00000000000001c6 .LVUS6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5135   .debug_loc:00000000000004de .LLST9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5126   .debug_loc:00000000000004d6 .LVUS9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:553    .text.process_tapping:0000000000000110 .LVL32
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:650    .text.process_tapping:000000000000016a .LVL42
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:376    .text.process_tapping:000000000000004e .LBI23
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:486    .text.process_tapping:00000000000000dc .LBI27
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5188   .debug_loc:0000000000000533 .LLST7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5173   .debug_loc:0000000000000525 .LVUS7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:491    .text.process_tapping:00000000000000dc .LBI29
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:490    .text.process_tapping:00000000000000dc .LBB29
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:506    .text.process_tapping:00000000000000ea .LBE29
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:521    .text.process_tapping:00000000000000f6 .LBI32
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5321   .debug_loc:00000000000005ed .LLST8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5316   .debug_loc:00000000000005e9 .LVUS8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:444    .text.process_tapping:00000000000000aa .LVL22
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:448    .text.process_tapping:00000000000000b0 .LVL23
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:698    .text.process_tapping:0000000000000198 .LVL46
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:715    .text.process_tapping:00000000000001ac .LVL48
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:728    .text.process_tapping:00000000000001ba .LVL50
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:758    .text.process_tapping:00000000000001e6 .LVL51
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:774    .text.process_tapping:00000000000001fa .LVL52
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:777    .text.process_tapping:00000000000001fe .LVL53
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:791    .text.process_tapping:000000000000020a .LVL54
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:808    .text.process_tapping:000000000000021e .LVL56
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:814    .text.process_tapping:0000000000000226 .LVL57
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:825    .text.process_tapping:0000000000000234 .LVL58
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:847    .text.process_tapping:000000000000024c .LVL60
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:868    .text.process_tapping:0000000000000264 .LVL62
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:941    .text.process_tapping:00000000000002c4 .LVL64
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:953    .text.process_tapping:00000000000002d8 .LVL65
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:968    .text.process_tapping:00000000000002e8 .LVL67
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:993    .text.process_tapping:0000000000000306 .LVL69
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1016   .text.process_tapping:0000000000000326 .LVL70
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1019   .text.process_tapping:000000000000032a .LVL71
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1061   .text.action_tapping_process:0000000000000000 .LFB5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1323   .text.action_tapping_process:0000000000000134 .LFE5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5332   .debug_loc:000000000000060b .LLST11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1109   .text.action_tapping_process:000000000000002e .LBI48
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1108   .text.action_tapping_process:000000000000002e .LBB48
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1127   .text.action_tapping_process:0000000000000044 .LBE48
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1145   .text.action_tapping_process:000000000000005a .LBI50
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5376   .debug_loc:0000000000000665 .LLST12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5369   .debug_loc:000000000000065f .LVUS12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1150   .text.action_tapping_process:000000000000005a .LBI52
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1149   .text.action_tapping_process:000000000000005a .LBB52
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1165   .text.action_tapping_process:000000000000006c .LBE52
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1242   .text.action_tapping_process:00000000000000c4 .LVL81
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1191   .text.action_tapping_process:0000000000000088 .LBI55
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1190   .text.action_tapping_process:0000000000000088 .LBB55
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1201   .text.action_tapping_process:0000000000000090 .LBE55
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1103   .text.action_tapping_process:000000000000002a .LVL75
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1188   .text.action_tapping_process:0000000000000088 .LVL78
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1258   .text.action_tapping_process:00000000000000d4 .LVL82
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1279   .text.action_tapping_process:00000000000000f6 .LVL83
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1320   .text.action_tapping_process:0000000000000132 .LVL84
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1039   .text.get_tapping_term:0000000000000000 .LFB4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1055   .text.get_tapping_term:0000000000000006 .LFE4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5440   .debug_loc:00000000000006be .LLST10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:5435   .debug_loc:00000000000006ba .LVUS10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:18     .text.debug_waiting_buffer:0000000000000002 .LCFI0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:22     .text.debug_waiting_buffer:0000000000000004 .LCFI1
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:26     .text.debug_waiting_buffer:0000000000000006 .LCFI2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:39     .text.debug_waiting_buffer:000000000000000a .LVL0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:54     .text.debug_waiting_buffer:0000000000000018 .LVL2
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:58     .text.debug_waiting_buffer:000000000000001c .LVL3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:85     .text.debug_waiting_buffer:000000000000003e .LVL5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:124    .text.waiting_buffer_scan_tap:0000000000000002 .LCFI3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:128    .text.waiting_buffer_scan_tap:0000000000000004 .LCFI4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:132    .text.waiting_buffer_scan_tap:0000000000000006 .LCFI5
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:155    .text.waiting_buffer_scan_tap:000000000000001a .LVL7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:172    .text.waiting_buffer_scan_tap:0000000000000038 .LVL9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:182    .text.waiting_buffer_scan_tap:0000000000000040 .LVL10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:204    .text.waiting_buffer_scan_tap:000000000000004c .LVL11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:209    .text.waiting_buffer_scan_tap:0000000000000050 .LVL12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:243    .text.waiting_buffer_scan_tap:0000000000000084 .LVL13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:289    .text.process_tapping:0000000000000002 .LCFI6
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:293    .text.process_tapping:0000000000000004 .LCFI7
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:297    .text.process_tapping:0000000000000006 .LCFI8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:301    .text.process_tapping:0000000000000008 .LCFI9
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:305    .text.process_tapping:000000000000000a .LCFI10
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:309    .text.process_tapping:000000000000000c .LCFI11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:313    .text.process_tapping:000000000000000e .LCFI12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:317    .text.process_tapping:0000000000000010 .LCFI13
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:321    .text.process_tapping:0000000000000012 .LCFI14
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:325    .text.process_tapping:0000000000000014 .LCFI15
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:330    .text.process_tapping:0000000000000018 .LCFI16
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:333    .text.process_tapping:000000000000001a .LCFI17
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:283    .text.process_tapping:0000000000000000 .LVL16
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:348    .text.process_tapping:0000000000000028 .LVL17
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:471    .text.process_tapping:00000000000000ce .LVL25
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:482    .text.process_tapping:00000000000000dc .LVL27
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:360    .text.process_tapping:000000000000003a .LVL18
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:363    .text.process_tapping:000000000000003c .LVL19
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:366    .text.process_tapping:000000000000003e .LVL20
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:441    .text.process_tapping:00000000000000a6 .LVL21
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:455    .text.process_tapping:00000000000000b8 .LVL24
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:475    .text.process_tapping:00000000000000d2 .LVL26
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:582    .text.process_tapping:000000000000012e .LVL35
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:619    .text.process_tapping:0000000000000156 .LVL37
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:656    .text.process_tapping:000000000000016e .LVL43
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:670    .text.process_tapping:000000000000017e .LVL44
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:676    .text.process_tapping:0000000000000182 .LVL45
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:711    .text.process_tapping:00000000000001a8 .LVL47
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:719    .text.process_tapping:00000000000001ae .LVL49
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:793    .text.process_tapping:000000000000020c .LVL55
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:827    .text.process_tapping:0000000000000236 .LVL59
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:859    .text.process_tapping:0000000000000258 .LVL61
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:897    .text.process_tapping:0000000000000290 .LVL63
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:957    .text.process_tapping:00000000000002da .LVL66
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:980    .text.process_tapping:00000000000002f4 .LVL68
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1021   .text.process_tapping:000000000000032c .LVL72
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:568    .text.process_tapping:0000000000000120 .LVL33
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:628    .text.process_tapping:0000000000000158 .LVL38
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:638    .text.process_tapping:0000000000000160 .LVL39
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:642    .text.process_tapping:0000000000000164 .LVL40
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:510    .text.process_tapping:00000000000000ec .LVL28
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:530    .text.process_tapping:00000000000000fa .LVL29
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:541    .text.process_tapping:0000000000000104 .LVL31
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:614    .text.process_tapping:0000000000000152 .LVL36
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1065   .text.action_tapping_process:0000000000000002 .LCFI18
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1069   .text.action_tapping_process:0000000000000004 .LCFI19
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1073   .text.action_tapping_process:0000000000000006 .LCFI20
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1078   .text.action_tapping_process:000000000000000a .LCFI21
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1081   .text.action_tapping_process:000000000000000c .LCFI22
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1143   .text.action_tapping_process:000000000000005a .LVL76
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1181   .text.action_tapping_process:0000000000000084 .LVL77
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1213   .text.action_tapping_process:00000000000000a0 .LVL79
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1220   .text.action_tapping_process:00000000000000a2 .LVL80
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1038   .text.get_tapping_term:0000000000000000 .LVL73
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1050   .text.get_tapping_term:0000000000000004 .LVL74
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1355   .debug_info:0000000000000000 .Ldebug_info0
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:35     .text.debug_waiting_buffer:0000000000000006 .LBB3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:50     .text.debug_waiting_buffer:0000000000000014 .LBE3
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:60     .text.debug_waiting_buffer:000000000000001c .LBB4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:90     .text.debug_waiting_buffer:0000000000000042 .LBE4
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:151    .text.waiting_buffer_scan_tap:0000000000000016 .LBB8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:176    .text.waiting_buffer_scan_tap:0000000000000038 .LBE8
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:184    .text.waiting_buffer_scan_tap:0000000000000040 .LBB11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:267    .text.waiting_buffer_scan_tap:00000000000000a2 .LBE11
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:272    .text.waiting_buffer_scan_tap:00000000000000a8 .LBB12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:276    .text.waiting_buffer_scan_tap:00000000000000ac .LBE12
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:375    .text.process_tapping:000000000000004e .LBB23
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:386    .text.process_tapping:0000000000000056 .LBE23
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:390    .text.process_tapping:000000000000005e .LBB26
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:399    .text.process_tapping:0000000000000068 .LBE26
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:485    .text.process_tapping:00000000000000dc .LBB27
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:513    .text.process_tapping:00000000000000ec .LBE27
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1023   .text.process_tapping:000000000000032c .LBB39
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1030   .text.process_tapping:0000000000000332 .LBE39
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:520    .text.process_tapping:00000000000000f6 .LBB32
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:523    .text.process_tapping:00000000000000f6 .LBE32
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:525    .text.process_tapping:00000000000000f6 .LBB35
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:544    .text.process_tapping:0000000000000104 .LBE35
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:586    .text.process_tapping:000000000000012e .LBB37
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:623    .text.process_tapping:0000000000000156 .LBE37
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:545    .text.process_tapping:0000000000000104 .LBB36
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:585    .text.process_tapping:000000000000012e .LBE36
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:624    .text.process_tapping:0000000000000156 .LBB38
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:659    .text.process_tapping:000000000000016e .LBE38
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1144   .text.action_tapping_process:000000000000005a .LBB50
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1184   .text.action_tapping_process:0000000000000084 .LBE50
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1215   .text.action_tapping_process:00000000000000a0 .LBB57
+/var/folders/xk/fjkh8m297bb3lq7fwx2mh0vh0000gq/T//ccKRgp5b.s:1249   .text.action_tapping_process:00000000000000c6 .LBE57
+
+UNDEFINED SYMBOLS
+debug_record
+process_record
+layer_switch_get_action
+is_tap_key
+debug_event
+process_record_tap_hint
+clear_keyboard
+__do_clear_bss
